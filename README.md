@@ -17,7 +17,6 @@ install with:
 
 To run the app in cypress folder you need to run:
 ```
-  cd /yourrepopath/flightctl/test/e2e/cypress/
   export OPENSHIFT_PASSWORD="your user password"
   export OPENSHIFT_USERNAME="username"
   export OPENSHIFT_AUTH="openshift auth url"
@@ -29,7 +28,6 @@ To load on GUI mode.
 
 If you want to load automaticly you need to run this command
 ```
-  cd /yourrepopath/flightctl/test/e2e/cypress/
   export OPENSHIFT_PASSWORD="your user password"
   export OPENSHIFT_USERNAME="username"
   export OPENSHIFT_AUTH="openshift auth url"

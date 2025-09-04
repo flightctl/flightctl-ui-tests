@@ -1,7 +1,8 @@
 .vscode
 .idea
-node_modules
+cypress/node_modules
 cypress/downloads
 cypress/videos
 cypress/screenshots
+cypress/cypress
 *.json

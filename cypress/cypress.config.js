@@ -1,5 +1,6 @@
 const { defineConfig } = require('cypress')
 const fs = require('fs')
+const {downloadFile} = require('cypress-downloadfile/lib/addPlugin')
 
 module.exports = defineConfig({
   video: true,
@@ -17,7 +18,8 @@ module.exports = defineConfig({
             fs.unlinkSync(results.video)
           }
         }
-      })
+      }),
+      on('task', {downloadFile})
     },
     supportFile: 'support/e2e.js',
     specPattern: 'e2e/*.cy.{js,jsx,ts,tsx}'
@@ -28,7 +30,7 @@ module.exports = defineConfig({
     username: process.env.OPENSHIFT_USERNAME || 'kubeadmin',
     password: process.env.OPENSHIFT_PASSWORD || 'kubeadmin',
     image: process.env.QUAY_IMAGE || 'quay.io/sdelacru/flightctl-centos:v1',
-    os: process.env.PLATFORM || 'Linux',
+    platform: process.env.PLATFORM || 'Linux',
     arch: process.env.ARCH || 'x86_64',
     repository: process.env.REPOSITORY || 'https://github.com/flightctl/flightctl-demos',
     revision: process.env.REVISION || 'main',

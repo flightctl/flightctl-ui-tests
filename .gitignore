@@ -5,4 +5,10 @@ cypress/downloads
 cypress/videos
 cypress/screenshots
 cypress/cypress
-*.json
+cypress/fixtures/
+cypress/package-lock.json
+container/*.crt
+container/*.key
+container/config.yaml
+container/output
+

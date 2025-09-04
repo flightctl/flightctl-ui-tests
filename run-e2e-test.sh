@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export PLATFORM="Windows"
-export ARCH="ARM 64"
-export QUAY_IMAGE="quay.io/repository/sdelacru/flightctl-centos:v1"
-export OPENSHIFT_PASSWORD="Y67D2-hriZ5-NZ3Tu-pwvZ7"
-export OPENSHIFT_AUTH="https://oauth-openshift.apps.ocp-edge-cluster-0.qe.lab.redhat.com"
-export OPENSHIFT_USERNAME="kubeadmin"
-export OPENSHIFT_HOST="https://console-openshift-console.apps.ocp-edge-cluster-0.qe.lab.redhat.com"
-export OPENSHIFT_TOKEN="sha256~YatLrb4e3DT_sBTVha8_-R4D4SoeqvMCbBnueWXH8YY"
-export OPENSHIFT_API="https://api.ocp-edge-cluster-0.qe.lab.redhat.com:6443"
-export FLIGHTCTL_API="https://api.flightctl.apps.ocp-edge-cluster-0.qe.lab.redhat.com"
 
 # Login to OpenShift using oc, installing if missing
 login_oc() {
@@ -141,6 +131,50 @@ else
   echo "Generate virtual agent machine"
   login_oc
   login_flightctl
+  echo "Generate flightctl agent config"
+cd container
+flightctl certificate request --signer=enrollment --expiration=365d --output=embedded > config.yaml
+
+echo "Create requested image"
+podman build -t ${OCI_IMAGE_REPO}:${OCI_IMAGE_TAG} .
+podman save -o my-image.tar ${OCI_IMAGE_REPO}:${OCI_IMAGE_TAG}
+sudo podman load -i my-image.tar
+rm -f my-image.tar
+mkdir -p output
+
+echo "Create qcow2 image"
+
+sudo podman run --rm -it --privileged --pull=newer \
+    --security-opt label=type:unconfined_t \
+    -v "${PWD}/output":/output \
+    -v /var/lib/containers/storage:/var/lib/containers/storage \
+    quay.io/centos-bootc/bootc-image-builder:latest \
+    --type qcow2 \
+    ${OCI_IMAGE_REPO}:${OCI_IMAGE_TAG}
+
+echo "Start VM"
+
+export VMNAME=flightctl-$1
+export VMRAM=4096
+export VMCPUS=4
+export VMDISK=/var/lib/libvirt/images/$VMNAME.qcow2
+export VMWAIT=0
+
+sudo cp ${PWD}/output/qcow2/disk.qcow2 $VMDISK
+sudo qemu-img resize $VMDISK +20G
+sudo chown libvirt:libvirt $VMDISK 2>/dev/null || true
+sudo virt-install --name $VMNAME \
+         --tpm backend.type=emulator,backend.version=2.0,model=tpm-tis \
+                                   --vcpus $VMCPUS \
+                                   --memory $VMRAM \
+                                   --import --disk $VMDISK,format=qcow2 \
+                                   --os-variant fedora-eln  \
+                                   --autoconsole text \
+                                   --wait $VMWAIT \
+                                   --transient || true
+
+cd ..
+  echo "Start Cypress tests"
 
   cd cypress
   if [ ! -d "node_modules" ]; then
@@ -168,6 +202,7 @@ else
    npx cypress open
   exit;
   fi
+  sudo virsh destroy $VMNAME
 fi
 
-sudo podman kill --all
+sudo virsh destroy $VMNAME

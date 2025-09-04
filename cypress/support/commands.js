@@ -1,3 +1,6 @@
+require('cypress-downloadfile/lib/downloadFileCommand')
+
+
 Cypress.Commands.add('login', (url=`${Cypress.env('host')}`, auth=`${Cypress.env('auth')}`, user=`${Cypress.env('username')}`, password=`${Cypress.env('password')}`) => {
     cy.visit(url)
     cy.origin(auth, { args: { username: user, password: password } }, ({ username, password }) => {
@@ -18,6 +21,7 @@ Cypress.Commands.add('login', (url=`${Cypress.env('host')}`, auth=`${Cypress.env
     cy.get('.pf-v5-c-modal-box__close > .pf-v5-c-button').click()
     cy.url().should('include', `${Cypress.env('host')}`)
 })
+
 Cypress.Commands.add('deviceApproval', () => {
     cy.get('#nav-toggle').should('exist')
     cy.get('#nav-toggle').click()
@@ -50,7 +54,6 @@ Cypress.Commands.add('editDevice', (img=`${Cypress.env('image')}`) => {
     cy.get('#textfield-osImage').should('be.visible')
     cy.get('#textfield-osImage').type(img)
     cy.get('#textfield-osImage').should('have.value', 'quay.io/sdelacru/flightctl-centos:v1')
-    wizardFooter.getNextButton().click()
     cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
     cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
     cy.get('.pf-v5-c-title > .pf-v5-l-grid > .pf-m-6-col-on-md').should('contain', 'test-device-edited')
@@ -91,9 +94,7 @@ Cypress.Commands.add('createFleet', (img = `${Cypress.env('image')}`) => {
     cy.get('#textfield-osImage').should('be.visible')
     cy.get('#textfield-osImage').type(img)
     cy.get('#textfield-osImage').should('have.value', img)
-    cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
-    cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
-    cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
+    cy.wizardNext(3)
     cy.get('.pf-v5-c-title').should('contain', 'test-fleet')
     cy.get('.pf-v5-c-description-list__text > .pf-v5-l-flex', { timeout: 50000 }).should('contain', 'Valid')
 })
@@ -109,10 +110,7 @@ Cypress.Commands.add('editFleet', () => {
     cy.get('[data-ouia-component-id="OUIA-Generated-DropdownItem-8"] > .pf-v5-c-menu__item > .pf-v5-c-menu__item-main > .pf-v5-c-menu__item-text').click()
     cy.get(':nth-child(2) > .pf-v5-c-form__group-label > .pf-v5-c-form__label > .pf-v5-c-form__label-text').should('contain', 'Fleet name')
     cy.get('.pf-v5-c-form__group-control > .pf-v5-c-label-group > .pf-v5-c-label-group__main > .pf-v5-c-label-group__list > .pf-v5-c-label-group__list-item > .pf-v5-c-button').click()
-    cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
-    cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
-    cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
-    cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
+    cy.wizardNext(4)
     cy.get('.pf-v5-c-title').should('contain', 'test-fleet')
 })
 Cypress.Commands.add('deleteFleet', () => {
@@ -138,16 +136,36 @@ Cypress.Commands.add('importFleet', () => {
     cy.get('#rich-validation-field-resourceSyncs\[0\]\.name').type('test-resource')
     cy.get('#textfield-resourceSyncs\[0\]\.targetRevision').type('main')
     cy.get('#textfield-resourceSyncs\[0\]\.path').type('/demos/basic-nginx-demo/deployment/fleet.yaml')
-    cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
-    cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
+    cy.wizardNext(2)
     cy.get('.pf-v5-c-alert__title').should('contain', 'Importing fleets')
     cy.get('.fctl-resource-link__text', { timeout: 50000 }).should('contain', 'basic-nginx-fleet')
 })
-Cypress.Commands.add('downloadFile', (os = `${Cypress.env('platform')}`, arch = `${Cypress.env('arch')}`) => {
-    cy.get('[data-test="help-dropdown-toggle"]').click()
-    cy.contains('Command Line Tools').should('be.visible')
+Cypress.Commands.add('downloadClifile', (platform = `${Cypress.env('platform')}`, arch = `${Cypress.env('arch')}`) => {
+    let filename
+    if (platform === 'Windows') {
+        if (arch === 'ARM 64') {
+            filename = `${platform}-flightctl-arm64.zip`;
+        } else {
+            filename = `${platform}-flightctl-x86_64.zip`;
+        }
+    } else {
+        if (arch === 'ARM 64') {
+            filename = `${platform}-flightctl-arm64.tar.gz`;
+        } else {
+            filename = `${platform}-flightctl-x86_64.tar.gz`;
+        }
+        filename = `${platform}-${arch}-flightctl.tar.gz`;
+    }
+    cy.get('[data-test="help-dropdown-toggle"]').click().should('be.visible')
     cy.contains('Command Line Tools').click()
-    cy.contains(`Download flightctl for ${os} for ${arch}`).downloadFile()
+    cy.log(`Download flightctl for ${platform} for ${arch}`)
+    cy.get('.co-external-link').contains(`Download flightctl for ${platform} for ${arch}`)
+            .should('have.attr', 'href').then((href) => {
+                cy.downloadFile(`${href}`, 'downloads', filename);
+            })
+    let fullpath = `downloads/${filename}`
+    cy.log(`Downloaded file: ${fullpath}`)
+    cy.readFile(fullpath).should('exist')
 })
 Cypress.Commands.add('createRepository', (repo = `${Cypress.env('repository')}`,revision = `${Cypress.env('revision')}`, resource = `${Cypress.env('resource')}`) => {
     cy.get('#nav-toggle').click()

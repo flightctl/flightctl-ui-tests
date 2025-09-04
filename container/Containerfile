@@ -9,7 +9,11 @@ RUN dnf -y install flightctl-agent && \
 
 RUN useradd -ms /bin/bash user && \
         echo "user:user" | chpasswd && \
+<<<<<<< HEAD
         echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && 
+=======
+        echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+>>>>>>> 365ce1d (Added device tests, fleet tests, repository test and downloads)
 # Add cloud-init and open-vm-tools
 RUN dnf -y install cloud-init open-vm-tools && \
     ln -s ../cloud-init.target /usr/lib/systemd/system/default.target.wants && \

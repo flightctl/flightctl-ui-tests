@@ -17,10 +17,10 @@ describe('Downloads Management', () => {
     })
     it('Should download os flightctl cli for macOS ARM 64', () => {
         cy.login(`${Cypress.env('host')}`, `${Cypress.env('auth')}`, `${Cypress.env('username')}`, `${Cypress.env('password')}`)
-        cy.downloadClifile(`macOS`, `ARM 64`)
+        cy.downloadClifile(`Mac`, `ARM 64`)
     })
     it('Should download os flightctl cli for macOS x86_64', () => {
         cy.login(`${Cypress.env('host')}`, `${Cypress.env('auth')}`, `${Cypress.env('username')}`, `${Cypress.env('password')}`)
-        cy.downloadClifile(`macOS`, `x86_64`)
+        cy.downloadClifile(`Mac`, `x86_64`)
     })
 })

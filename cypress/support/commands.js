@@ -149,11 +149,6 @@ Cypress.Commands.add('downloadClifile', (platform = `${Cypress.env('platform')}`
             filename = `${platform}-flightctl-x86_64.zip`;
         }
     } else {
-        if (arch === 'ARM 64') {
-            filename = `${platform}-flightctl-arm64.tar.gz`;
-        } else {
-            filename = `${platform}-flightctl-x86_64.tar.gz`;
-        }
         filename = `${platform}-${arch}-flightctl.tar.gz`;
     }
     cy.get('[data-test="help-dropdown-toggle"]').click().should('be.visible')

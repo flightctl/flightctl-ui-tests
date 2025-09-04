@@ -30,10 +30,13 @@ module.exports = defineConfig({
     username: process.env.OPENSHIFT_USERNAME || 'kubeadmin',
     password: process.env.OPENSHIFT_PASSWORD || 'kubeadmin',
     image: process.env.QUAY_IMAGE || 'quay.io/sdelacru/flightctl-centos:v1',
-    platform: process.env.PLATFORM || 'Linux',
-    arch: process.env.ARCH || 'x86_64',
+    fleetname: process.env.FLEETNAME || 'test-fleet',
+    newimage: process.env.NEWIMAGE || 'quay.io/sdelacru/flightctl-centos:v2',
     repository: process.env.REPOSITORY || 'https://github.com/flightctl/flightctl-demos',
     revision: process.env.REVISION || 'main',
-    resource: process.env.RESOURCE || '/demos/basic-nginx-demo/deployment/fleet.yaml'
+    yaml: process.env.YAML || '/demos/basic-nginx-demo/deployment/fleet.yaml',
+    newyaml: process.env.NEWYAML || '/demos/quadlet-wordpress-demo/deployment/fleet.yaml',
+    repositoryname: process.env.REPOSITORYNAME || 'test-repository',
+    resourcename: process.env.RESOURCENAME || 'test-resource',
   },
 })

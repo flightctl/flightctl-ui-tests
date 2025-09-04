@@ -174,6 +174,7 @@ sudo virt-install --name $VMNAME \
                                    --transient || true
 
 cd ..
+  sleep 30
   echo "Start Cypress tests"
 
   cd cypress

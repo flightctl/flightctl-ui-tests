@@ -50,7 +50,7 @@ Cypress.Commands.add('editDevice', (img=`${Cypress.env('image')}`) => {
     cy.get('#textfield-osImage').should('be.visible')
     cy.get('#textfield-osImage').type(img)
     cy.get('#textfield-osImage').should('have.value', 'quay.io/sdelacru/flightctl-centos:v1')
-    cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
+    wizardFooter.getNextButton().click()
     cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
     cy.get('.pf-v5-c-wizard__footer > .pf-m-primary').click()
     cy.get('.pf-v5-c-title > .pf-v5-l-grid > .pf-m-6-col-on-md').should('contain', 'test-device-edited')

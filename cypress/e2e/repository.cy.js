@@ -7,7 +7,7 @@ describe('Repository Management', () => {
 
     }) */
     it('Should edit a repository', () => {
-        cy.editRepository(`${Cypress.env('repository')}`, `${Cypress.env('revision')}`, `${Cypress.env('resource')}`)
+        cy.editRepository(`${Cypress.env('repository')}`)
     })
 /*     it('Should delete a repository', () => { 
         cy.deleteRepository(`${Cypress.env('repository')}`)

@@ -20,6 +20,38 @@ Cypress.Commands.add('login', (url=`${Cypress.env('host')}`, auth=`${Cypress.env
     cy.get('.pf-v5-c-modal-box__close > .pf-v5-c-button').should('be.visible')
     cy.get('.pf-v5-c-modal-box__close > .pf-v5-c-button').click()
     cy.url().should('include', `${Cypress.env('host')}`)
+    //cy.get('[data-test-id="cluster-dropdown-toggle"]', { timeout: 30000 }).should('be.visible').click()
+    //cy.get('button.pf-v5-c-menu__item').contains('All Clusters').click()
+})
+
+// Command to select organization if the selection page appears
+Cypress.Commands.add('selectOrganizationIfNeeded', (orgName = 'Default', maxRetries = 5, retryDelay = 1000) => {
+    const checkForOrgSelection = (attempt = 1) => {
+        cy.log(`Checking for organization selection page (attempt ${attempt}/${maxRetries})`)
+        
+        // Wait for page to stabilize
+        cy.wait(retryDelay)
+        
+        cy.get('body').then(($body) => {
+            if ($body.text().includes('Select Organization')) {
+                cy.log(`Organization selection page detected, selecting ${orgName}`)
+                // Click on the organization name to select it
+                cy.contains(orgName).click()
+                // Click the Continue button
+                cy.contains('button', 'Continue').click()
+                // Wait for the page to load after selection
+                cy.get('.pf-v5-c-page', { timeout: 30000 }).should('exist')
+            } else if (attempt < maxRetries) {
+                // Retry if we haven't reached max attempts
+                cy.log(`Organization selection not found yet, retrying...`)
+                checkForOrgSelection(attempt + 1)
+            } else {
+                cy.log('No organization selection page detected after all retries, continuing...')
+            }
+        })
+    }
+    
+    checkForOrgSelection()
 })
 
 Cypress.Commands.add('deviceApproval', () => {
@@ -27,7 +59,8 @@ Cypress.Commands.add('deviceApproval', () => {
     cy.get('#nav-toggle').click()
     cy.contains('Edge Management').click()
     cy.contains('Devices').click()
-    cy.get(':nth-child(1) > .pf-v5-l-flex > :nth-child(1) > .pf-v5-c-title').contains('Devices pending approval')
+    cy.selectOrganizationIfNeeded('Default')
+    cy.get('h2.pf-v5-c-title.pf-m-3xl').contains('Devices pending approval')
     cy.get('[data-label="Approve"] > .pf-v5-c-button').should('exist')
     cy.get('[data-label="Approve"] > .pf-v5-c-button').should('be.visible')
     cy.get('[data-label="Approve"] > .pf-v5-c-button').click()
@@ -43,9 +76,12 @@ Cypress.Commands.add('editDevice', (img=`${Cypress.env('image')}`) => {
     cy.get('#nav-toggle').click()
     cy.contains('Edge Management').click()
     cy.contains('Devices').click()
+    cy.selectOrganizationIfNeeded('Default')
     cy.get('a > .fctl-resource-link__text').contains('test-device')
     cy.get('.pf-v5-c-table__action > .pf-v5-c-menu-toggle').click()
+    cy.wait(1000)
     cy.contains('Edit device configurations').click()
+    cy.wait(1000)
     cy.get('#rich-validation-field-deviceAlias').should('be.visible')
     cy.get('#rich-validation-field-deviceAlias').should('have.value', 'test-device')
     cy.get('#rich-validation-field-deviceAlias').clear()
@@ -65,6 +101,7 @@ Cypress.Commands.add('decommissionDevice', () => {
     cy.get('#nav-toggle').click()
     cy.contains('Edge Management').click()
     cy.contains('Devices').click()
+    cy.selectOrganizationIfNeeded('Default')
     cy.get('.pf-v5-c-table__tbody > .pf-v5-c-table__tr > .pf-v5-c-table__check > label > input').should('be.visible')
     cy.get('.pf-v5-c-table__tbody > .pf-v5-c-table__tr > .pf-v5-c-table__check > label > input').click()
     cy.get('#devices-toolbar > :nth-child(1) > .pf-v5-c-toolbar__content-section > :nth-child(3) > .pf-v5-c-button').should('be.visible')
@@ -85,6 +122,7 @@ Cypress.Commands.add('createFleet', (img = `${Cypress.env('image')}`, fleetname 
     cy.get('#nav-toggle').click()
     cy.contains('Edge Management').click()
     cy.contains('Fleets').click()
+    cy.selectOrganizationIfNeeded('Default')
     cy.get(':nth-child(2) > .pf-v5-l-split > :nth-child(1) > .pf-v5-c-button').should('exist')
     cy.get(':nth-child(2) > .pf-v5-l-split > :nth-child(1) > .pf-v5-c-button').should('be.visible')
     cy.get(':nth-child(2) > .pf-v5-l-split > :nth-child(1) > .pf-v5-c-button').click()
@@ -105,6 +143,7 @@ Cypress.Commands.add('editFleet', (fleetname = `${Cypress.env('fleetname')}`,img
     cy.get('#nav-toggle').click()
     cy.contains('Edge Management').click()
     cy.contains('Fleets').click()
+    cy.selectOrganizationIfNeeded('Default')
     cy.get('[data-label="Name"]').contains(fleetname)
     cy.get('.pf-v5-c-table__action > .pf-v5-c-menu-toggle').click()
     cy.get('td.pf-v5-c-table__td').then($cells => cy.wrap($cells.eq(-1)))
@@ -126,6 +165,7 @@ Cypress.Commands.add('deleteFleet', (fleetname = `${Cypress.env('fleetname')}`) 
     cy.get('#nav-toggle').click()
     cy.contains('Edge Management').click()
     cy.contains('Fleets').click()
+    cy.selectOrganizationIfNeeded('Default')
     cy.get('[data-label="Name"]').contains(fleetname)
     cy.get('.pf-v5-c-table__tbody > .pf-v5-c-table__tr > .pf-v5-c-table__check > label > input').click()
     cy.get('#pf-random-id-0 > :nth-child(1) > .pf-v5-c-toolbar__content-section > :nth-child(3) > .pf-v5-c-button').should('be.visible')
@@ -137,6 +177,7 @@ Cypress.Commands.add('importFleet', (repo = `${Cypress.env('repository')}`, flee
     cy.get('#nav-toggle').click()
     cy.contains('Edge Management').click()      
     cy.contains('Fleets').click()
+    cy.selectOrganizationIfNeeded('Default')
     cy.get(':nth-child(2) > .pf-v5-l-split > :nth-child(2) > .pf-v5-c-button').should('exist')
     cy.get(':nth-child(2) > .pf-v5-l-split > :nth-child(2) > .pf-v5-c-button').should('be.visible')
     cy.get(':nth-child(2) > .pf-v5-l-split > :nth-child(2) > .pf-v5-c-button').click()
@@ -180,10 +221,11 @@ Cypress.Commands.add('createRepository', (reponame = `${Cypress.env('repositoryn
     cy.get('#nav-toggle').click()
     cy.contains('Edge Management').click()
     cy.contains('Repositories').click()
+    cy.selectOrganizationIfNeeded('Default')
     cy.get('.pf-v5-c-toolbar__content-section > :nth-child(2) > .pf-v5-c-button').should('be.visible')
     cy.get('.pf-v5-c-toolbar__content-section > :nth-child(2) > .pf-v5-c-button').click()
     cy.get('#rich-validation-field-name').should('be.visible')
-    cy.get('#rich-validation-field-name').type(reponame)
+    cy.get('#rich-validation-field-name').type('test-repository')
     cy.get('#rich-validation-field-name').should('have.value', 'test-repository')
     cy.get('#use-resource-syncs').should('be.visible')
     cy.get('#textfield-url').type(repo)
@@ -199,6 +241,8 @@ Cypress.Commands.add('editRepository',(reponame = `${Cypress.env('repositoryname
     cy.get('#nav-toggle').click()
     cy.contains('Edge Management').click()
     cy.contains('Repositories').click()
+    cy.selectOrganizationIfNeeded('Default')
+
     cy.contains(reponame).should('be.visible')
     cy.get('.pf-v5-c-table__action').click()
     cy.get('[data-ouia-component-id="OUIA-Generated-DropdownItem-1"] > .pf-v5-c-menu__item > .pf-v5-c-menu__item-main > .pf-v5-c-menu__item-text').contains('Edit repository').click()

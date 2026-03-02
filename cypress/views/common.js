@@ -7,8 +7,16 @@ export const common = {
    * @param {string} page - The page to navigate to (e.g., 'Devices', 'Fleets', 'Repositories')
    */
   navigateTo: (page) => {
-    cy.get('#nav-toggle').should('exist')
-    cy.get('#nav-toggle').click()
+    cy.get('#nav-toggle',{ timeout: 30000 }).should('exist')
+    // Only open the sidebar if it's collapsed (clicking when open would close it)
+    cy.get('body').then(($body) => {
+      const sidebarExpanded =
+        $body.find('.pf-v6-c-page__sidebar.pf-m-expanded').length > 0 ||
+        $body.find('#nav-toggle').attr('aria-expanded') === 'true'
+      if (!sidebarExpanded) {
+        cy.get('#nav-toggle').click()
+      }
+    })
     cy.contains('Edge Management').click()
     cy.contains(page).click()
     common.selectOrganizationIfNeeded('Default')
@@ -17,7 +25,7 @@ export const common = {
   /**
    * Select organization if the selection page appears
    */
-  selectOrganizationIfNeeded: (orgName = 'Default', maxRetries = 5, retryDelay = 1000) => {
+  selectOrganizationIfNeeded: (orgName = 'Default', maxRetries = 10, retryDelay = 1000) => {
     const checkForOrgSelection = (attempt = 1) => {
       cy.log(`Checking for organization selection page (attempt ${attempt}/${maxRetries})`)
       
@@ -28,7 +36,7 @@ export const common = {
           cy.log(`Organization selection page detected, selecting ${orgName}`)
           cy.contains(orgName).click()
           cy.contains('button', 'Continue').click()
-          cy.get('.pf-v5-c-page', { timeout: 30000 }).should('exist')
+          cy.get('.pf-v6-c-page', { timeout: 30000 }).should('exist')
         } else if (attempt < maxRetries) {
           cy.log(`Organization selection not found yet, retrying...`)
           checkForOrgSelection(attempt + 1)

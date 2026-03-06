@@ -16,7 +16,7 @@ Cypress.Commands.add('login', (url=`${Cypress.env('host')}`, auth=`${Cypress.env
         cy.get('#inputPassword').should('have.value', password)
         cy.get('#co-login-button').click()
       })
-    const tryCloseOnboardingModal = (attempt = 1, maxRetries = 5, retryDelay = 2000) => {
+    const tryCloseOnboardingModal = (attempt = 1, maxRetries = 15, retryDelay = 2000) => {
       cy.get('body').then(($body) => {
         const $btn = $body.find('[data-ouia-component-id="clustersOnboardingModal-ModalBoxCloseButton"]')
         if ($btn.length > 0) {

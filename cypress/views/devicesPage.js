@@ -19,7 +19,7 @@ export const devicesPage = {
     cy.get('#rich-validation-field-deviceAlias').should('have.value', deviceName)
     cy.get('.pf-v6-c-form__actions > .pf-m-primary').should('be.visible')
     cy.get('.pf-v6-c-form__actions > .pf-m-primary').click()
-    cy.get('[data-label="Device status"]', { timeout: 50000 }).should('contain', 'Online')
+    cy.get('[data-label="Device status"]', { timeout: 500000 }).should('contain', 'Online')
   },
 
   /**

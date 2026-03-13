@@ -4,6 +4,9 @@ const {downloadFile} = require('cypress-downloadfile/lib/addPlugin')
 module.exports = defineConfig({
   video: true,
   videoCompression: false,
+  // Cypress default is 1000x660 when not set. Override for a larger test viewport:
+  viewportWidth: parseInt(process.env.CYPRESS_VIEWPORT_WIDTH, 10) || 1280,
+  viewportHeight: parseInt(process.env.CYPRESS_VIEWPORT_HEIGHT, 10) || 720,
   e2e: {
     setupNodeEvents(on, config) {
       on('task', {downloadFile})
@@ -25,5 +28,6 @@ module.exports = defineConfig({
     newyaml: process.env.NEWYAML || '/demos/quadlet-wordpress-demo/deployment/fleet.yaml',
     repositoryname: process.env.REPOSITORYNAME || 'test-repository',
     resourcename: process.env.RESOURCENAME || 'base/fedora-bootc/deploy/fleet.yaml',
+    useAcmNavigation: process.env.CYPRESS_USE_ACM_NAVIGATION !== 'false',
   },
 })

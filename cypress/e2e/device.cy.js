@@ -43,23 +43,25 @@ describe('Device Management', () => {
     })
   })
 
-  it('Should approve a device enrollment request', () => {
-    devicesPage.approveDevice()
-  })
+  describe('Approve device, edit device, view device events, decommission device', () => {
+    it('Should approve a device enrollment request', () => {
+      devicesPage.approveDevice()
+    })
 
-  /* it('Should open a terminal on a device', () => {
-    devicesPage.openTerminal()
-  }) */
+    /* it('Should open a terminal on a device', () => {
+      devicesPage.openTerminal()
+    }) */
 
-  it('Should edit a device', () => {
-    devicesPage.editDevice(`${Cypress.env('image')}`)
-  })
+    it('Should edit a device', () => {
+      devicesPage.editDevice(`${Cypress.env('image')}`)
+    })
 
-  it('Should view device events', () => {
-    devicesPage.deviceEvents()
-  })
+    it('Should view device events', () => {
+      devicesPage.deviceEvents()
+    })
 
-  it('Should decommission a device', () => {
-    devicesPage.decommissionDevice()
+    it('Should decommission a device', () => {
+      devicesPage.decommissionDevice()
+    })
   })
 })

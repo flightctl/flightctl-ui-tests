@@ -17,6 +17,10 @@ describe('Device Management', () => {
     devicesPage.editDevice(`${Cypress.env('image')}`)
   })
 
+  it('Should view device events', () => {
+    devicesPage.deviceEvents()
+  })
+
   it('Should decommission a device', () => {
     devicesPage.decommissionDevice()
   })

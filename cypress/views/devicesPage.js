@@ -22,6 +22,22 @@ export const devicesPage = {
     cy.get('[data-label="Device status"]', { timeout: 500000 }).should('contain', 'Online')
   },
 
+  deviceEvents: (deviceName = 'test-device') => {
+    common.navigateTo('Devices')
+    cy.wait(1000)
+    cy.get('a > .fctl-resource-link__text').contains(deviceName).should('be.visible').click()
+    cy.wait(1000)
+    cy.get('[id^="pf-tab-events-pf"]').contains('Events').should('be.visible').click()
+    cy.wait(1000)
+    cy.get('.pf-v6-c-menu-toggle.pf-m-expanded').click()
+    cy.wait(1000)
+    cy.get('.pf-v6-c-menu__item-text').contains('All types').click()
+    cy.get('.pf-v6-c-card__body.fctl-events-container')
+      .should('contain', 'Device returned to being up-to-date')
+      .and('contain', 'Device is updating')
+      .and('contain', 'Device was created successfully')
+  },
+
   /**
    * Edit a device configuration
    */

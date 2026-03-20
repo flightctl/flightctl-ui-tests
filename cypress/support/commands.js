@@ -3,7 +3,7 @@ require('cypress-downloadfile/lib/downloadFileCommand')
 /**
  * Dismiss clusters onboarding modal if it appears (used after login and after session restore).
  */
-const tryCloseOnboardingModal = (attempt = 1, maxRetries = 25, retryDelay = 2000) => {
+const tryCloseOnboardingModal = (attempt = 1, maxRetries = 15, retryDelay = 2000) => {
   cy.get('body').then(($body) => {
     const $btn = $body.find('[data-ouia-component-id="clustersOnboardingModal-ModalBoxCloseButton"]')
     if ($btn.length > 0) {

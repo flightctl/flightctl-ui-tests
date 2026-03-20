@@ -57,6 +57,14 @@ describe('Device Management', () => {
       devicesPage.editDevice(`${Cypress.env('image')}`)
     })
 
+    it('Should edit a device image - fake url', () => {
+      devicesPage.editDevice(`quay.io/redhat/rhde:9.2`, 'test-device-edited', 'test-device-edited2')
+    })
+
+    it('Should make sure device is out-of-date', () => {
+      devicesPage.checkDeviceOutOfDate()
+    })
+
     it('Should view device events', () => {
       devicesPage.deviceEvents()
     })

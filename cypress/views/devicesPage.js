@@ -3,6 +3,16 @@ import { common } from './common'
 /** Alias validation: red error icon color when invalid */
 const VALIDATION_ERROR_ICON_COLOR = '#b1380b'
 
+/** Event message substrings for deviceEvents(): Warning filter vs All types */
+const DEVICE_EVENTS_WARNING_ONLY = ['Device update failed']
+const DEVICE_EVENTS_NORMAL = [
+  'Device returned to being up-to-date',
+  'Device is updating',
+  'Device was created successfully',
+]
+
+const EVENTS_CONTAINER = '.pf-v6-c-card__body.fctl-events-container'
+
 /**
  * DevicesPage object for device management operations
  */
@@ -72,13 +82,30 @@ export const devicesPage = {
     cy.wait(1000)
     cy.get('[id^="pf-tab-events-pf"]').contains('Events').should('be.visible').click()
     cy.wait(1000)
-    cy.get('.pf-v6-c-menu-toggle.pf-m-expanded').click()
+    // Events tab opens with Warning filter: only warning events, no normal/info events
+    cy.get('.pf-v6-c-menu-toggle.pf-m-expanded').contains('Warning')
+    DEVICE_EVENTS_NORMAL.forEach((msg) => {
+      cy.get(EVENTS_CONTAINER).should('not.contain', msg)
+    })
+    DEVICE_EVENTS_WARNING_ONLY.forEach((msg) => {
+      cy.get(EVENTS_CONTAINER).should('contain', msg)
+    })
+    cy.get('.pf-v6-c-menu-toggle.pf-m-expanded').contains('Warning').click()
+    cy.wait(1000)
+    cy.get('.pf-v6-c-menu__item-text').contains('Normal').click()
+    DEVICE_EVENTS_NORMAL.forEach((msg) => {
+      cy.get(EVENTS_CONTAINER).should('contain', msg)
+    })
+    DEVICE_EVENTS_WARNING_ONLY.forEach((msg) => {
+      cy.get(EVENTS_CONTAINER).should('not.contain', msg)
+    })
+    cy.get('.pf-v6-c-menu-toggle.pf-m-expanded').contains('Normal').click()
     cy.wait(1000)
     cy.get('.pf-v6-c-menu__item-text').contains('All types').click()
-    cy.get('.pf-v6-c-card__body.fctl-events-container')
-      .should('contain', 'Device returned to being up-to-date')
-      .and('contain', 'Device is updating')
-      .and('contain', 'Device was created successfully')
+    const allTypesExpected = [...DEVICE_EVENTS_NORMAL, ...DEVICE_EVENTS_WARNING_ONLY]
+    allTypesExpected.forEach((msg) => {
+      cy.get(EVENTS_CONTAINER).should('contain', msg)
+    })
   },
 
   /**
@@ -105,6 +132,36 @@ export const devicesPage = {
     cy.get('span.pf-v6-c-button__text').contains('Next').click()
     cy.get('span.pf-v6-c-button__text').contains('Save').click()
     cy.get('.pf-v6-c-title > .pf-v6-l-grid > .pf-m-6-col-on-md', { timeout: 50000 }).should('contain', newName)
+  },
+
+  checkDeviceOutOfDate: (deviceName = 'test-device-edited2') => {
+    common.navigateTo('Devices')
+    cy.get('a > .fctl-resource-link__text').contains(deviceName).should('be.visible')
+
+    const intervalMs = 5000
+    const totalMs = 120000
+    const maxAttempts = Math.floor(totalMs / intervalMs) + 1
+
+    const pollForOutOfDate = (attempt) => {
+      if (attempt > 0) {
+        cy.wait(intervalMs)
+      }
+      cy.get('[data-label="Update status"]').then(($els) => {
+        const found = Cypress.$.makeArray($els).some((el) =>
+          el.textContent.includes('Out-of-date'),
+        )
+        if (found) {
+          cy.get('[data-label="Update status"]').contains('Out-of-date').should('be.visible')
+        } else if (attempt + 1 < maxAttempts) {
+          pollForOutOfDate(attempt + 1)
+        } else {
+          throw new Error(
+            `Update status did not contain "Out-of-date" within ${totalMs / 1000}s (checked every ${intervalMs / 1000}s)`,
+          )
+        }
+      })
+    }
+    pollForOutOfDate(0)
   },
 
   /**

@@ -1,8 +1,9 @@
 import { devicesPage } from '../views/devicesPage'
 
 describe('Device Management', () => {
-  beforeEach(() => {
-    cy.login(`${Cypress.env('host')}`, `${Cypress.env('auth')}`, `${Cypress.env('username')}`, `${Cypress.env('password')}`)
+  // One login + visit per spec file; later tests reuse the same tab (testIsolation: false).
+  before(() => {
+    cy.ensureLoggedIn()
   })
 
   describe('Approve device – Alias validation (negative)', () => {

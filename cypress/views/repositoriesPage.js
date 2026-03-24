@@ -1,9 +1,135 @@
 import { common } from './common'
 
+/** Validation error icon on invalid fields (matches devicesPage) */
+const VALIDATION_ERROR_ICON_COLOR = '#b1380b'
+
+/**
+ * Illegal repository name samples (popover rules: charset, start/end alphanumeric, length).
+ */
+const INVALID_REPOSITORY_NAMES = [
+  'INVALID_NAME', // uppercase + underscore
+  '-badprefix', // must not start with dash
+  'badsuffix-', // must not end with dash
+  'my repo', // spaces not allowed
+  'repo$money', // only lowercase, digits, - and .
+]
+
+/** URL must start with http:// or https:// — these do not */
+const INVALID_REPOSITORY_URLS = [
+  '123',
+  'ftp://example.com/repo',
+  'www.example.com/repo',
+  '//example.com',
+  'http', // not http://
+]
+
+const REPOSITORY_URL_ERROR_HELPER_TEXT = 'Enter a valid repository URL'
+
 /**
  * RepositoriesPage object for repository management operations
  */
 export const repositoriesPage = {
+  /**
+   * Open create form and assert each invalid name triggers the first field validation icon.
+   */
+  assertIllegalRepositoryNameValuesShowValidation: () => {
+    repositoriesPage.openCreateRepositoryForm()
+    cy.wrap(INVALID_REPOSITORY_NAMES).each((invalidName) => {
+      cy.get('#rich-validation-field-name').clear()
+      cy.get('#rich-validation-field-name').type(invalidName)
+      cy.get('#rich-validation-field-name').should('have.value', invalidName)
+      repositoriesPage.expectFirstValidationIconError()
+    })
+    repositoriesPage.cancelCreateRepositoryForm()
+  },
+
+  /**
+   * Open create form, set a valid repository name, then assert invalid URLs show URL helper error text.
+   */
+  assertIllegalRepositoryUrlValuesShowValidation: () => {
+    repositoriesPage.openCreateRepositoryForm()
+    cy.get('#rich-validation-field-name').clear().type('valid-repo-name')
+    cy.get('#rich-validation-field-name').should('have.value', 'valid-repo-name')
+    cy.get('#textfield-url').should('be.visible')
+    cy.wrap(INVALID_REPOSITORY_URLS).each((invalidUrl) => {
+      cy.get('#textfield-url').clear()
+      cy.get('#textfield-url').type(invalidUrl)
+      cy.get('#textfield-url').should('have.value', invalidUrl)
+      cy.get('#textfield-url')
+        .closest('.pf-v6-c-form__group')
+        .find('.pf-v6-c-helper-text__item-text')
+        .should('be.visible')
+        .and('contain', REPOSITORY_URL_ERROR_HELPER_TEXT)
+    })
+    repositoriesPage.cancelCreateRepositoryForm()
+  },
+
+  /**
+   * Open Create repository from the Repositories list (primary toolbar button).
+   */
+  openCreateRepositoryForm: () => {
+    common.navigateTo('Repositories')
+    cy.contains('button.pf-v6-c-button.pf-m-primary', 'Create repository').should('be.visible').click()
+    cy.get('#rich-validation-field-name').should('be.visible')
+  },
+
+  /**
+   * Assert the first validation icon on the page shows error state (#b1380b on nested SVG).
+   */
+  expectFirstValidationIconError: () => {
+    cy.get('button[aria-label="Validation"]').first().should('be.visible')
+    cy.get('button[aria-label="Validation"]')
+      .first()
+      .find('svg')
+      .should('have.attr', 'color', VALIDATION_ERROR_ICON_COLOR)
+  },
+
+  /**
+   * Second validation icon on create-repository form (resource sync name field).
+   * Same control as first: button.pf-v6-c-button.pf-m-plain with aria-label="Validation"; SVG color #b1380b.
+   */
+  expectSecondValidationIconError: () => {
+    cy.get('button[aria-label="Validation"]').eq(1).should('be.visible')
+    cy.get('button[aria-label="Validation"]')
+      .eq(1)
+      .find('svg')
+      .should('have.attr', 'color', VALIDATION_ERROR_ICON_COLOR)
+  },
+
+  /**
+   * Resource sync name field on create form (same naming rules as repository name).
+   */
+  assertIllegalResourceSyncNameValuesShowValidation: () => {
+    const resourceSyncNameField = '#rich-validation-field-resourceSyncs\\[0\\]\\.name'
+    const validUrl = Cypress.env('repository') || 'https://github.com/flightctl/flightctl-demos'
+
+    repositoriesPage.openCreateRepositoryForm()
+    cy.get('#rich-validation-field-name').clear().type('valid-repo-name')
+    cy.get('#textfield-url').clear().type(validUrl)
+    cy.get('#textfield-url').should('have.value', validUrl)
+    cy.get('#use-resource-syncs').then(($cb) => {
+      if (!$cb.is(':checked')) {
+        cy.wrap($cb).check({ force: true })
+      }
+    })
+    cy.get(resourceSyncNameField).should('be.visible')
+    cy.wrap(INVALID_REPOSITORY_NAMES).each((invalidName) => {
+      cy.get(resourceSyncNameField).clear()
+      cy.get(resourceSyncNameField).type(invalidName)
+      cy.get(resourceSyncNameField).should('have.value', invalidName)
+      repositoriesPage.expectSecondValidationIconError()
+    })
+    repositoriesPage.cancelCreateRepositoryForm()
+  },
+
+  /**
+   * Leave the create-repository form without submitting (Cancel).
+   */
+  cancelCreateRepositoryForm: () => {
+    cy.get('button').contains('Cancel').click()
+    cy.get('#rich-validation-field-name').should('not.exist')
+  },
+
   /**
    * Create a new repository
    */

@@ -1,9 +1,66 @@
 import { common } from './common'
 
+/** Fleet name validation: red error icon color when invalid */
+const VALIDATION_ERROR_ICON_COLOR = '#b1380b'
+
+function assertFleetNameValidationIconErrorColor() {
+  cy.get('button[aria-label="Validation"]').should('be.visible')
+  cy.get('button[aria-label="Validation"]')
+    .find('svg')
+    .should('have.attr', 'color', VALIDATION_ERROR_ICON_COLOR)
+}
+
 /**
  * FleetsPage object for fleet management operations
  */
 export const fleetsPage = {
+  /**
+   * Open the Create fleet wizard on General info (fleet name field visible).
+   */
+  openCreateFleetWizard: () => {
+    common.navigateTo('Fleets')
+    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').should('exist')
+    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').should('be.visible')
+    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').click()
+    cy.get('#rich-validation-field-name').should('be.visible')
+  },
+
+  /**
+   * Fill the Fleet name field on the open Create fleet wizard.
+   */
+  fillFleetNameInCreateWizard: (name) => {
+    cy.get('#rich-validation-field-name').clear()
+    cy.get('#rich-validation-field-name').type(name, { delay: 0 })
+    cy.get('#rich-validation-field-name').should('have.value', name)
+  },
+
+  /**
+   * Assert the validation icon shows error state (SVG color="#b1380b").
+   */
+  expectValidationIconError: () => {
+    assertFleetNameValidationIconErrorColor()
+  },
+
+  /**
+   * After an invalid fleet name on General info:
+   * 1) Validation icon SVG has color="#b1380b"
+   * 2) Wizard footer primary Next button is disabled
+   */
+  expectInvalidFleetNameBlocksWizard: () => {
+    assertFleetNameValidationIconErrorColor()
+    cy.get('footer.pf-v6-c-wizard__footer').within(() => {
+      cy.contains('button.pf-m-primary', 'Next').should('be.disabled')
+    })
+  },
+
+  /**
+   * Close the Create fleet wizard without submitting (Cancel).
+   */
+  closeCreateFleetWizard: () => {
+    cy.contains('Cancel').click()
+    cy.get('#rich-validation-field-name').should('not.exist')
+  },
+
   /**
    * Create a new fleet
    */

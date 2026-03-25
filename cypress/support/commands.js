@@ -1,6 +1,40 @@
 require('cypress-downloadfile/lib/downloadFileCommand')
 
 /**
+ * OpenShift console "Welcome to the new OpenShift experience" / guided tour intro — no stable
+ * data-ouia id in all versions. Find a visible dialog whose text matches, then prefer Skip tour,
+ * else the modal header Close button. Short retries so runs stay fast when the modal does not show.
+ *
+ * To harden: open DevTools on the modal → copy data-ouia-component-id or data-test from Skip/Close
+ * and prefer that selector here.
+ */
+const tryCloseConsoleWelcomeTourModal = (attempt = 1, maxRetries = 10, retryDelay = 600) => {
+  cy.get('body').then(($body) => {
+    const $jq = Cypress.$
+    const $dialogs = $body.find('[role="dialog"]:visible').filter((_, el) => {
+      const text = el.textContent || ''
+      return (
+        /welcome to the new openshift experience/i.test(text) ||
+        (/launch tour/i.test(text) && /skip tour/i.test(text))
+      )
+    })
+    if ($dialogs.length > 0) {
+      const $d = $jq($dialogs[0])
+      const $skip = $d.find('button, a').filter((_, el) => /skip tour/i.test($jq(el).text().trim()))
+      const $close = $d.find('button[aria-label="Close"]')
+      if ($skip.length > 0) {
+        cy.wrap($skip.first()).click()
+      } else if ($close.length > 0) {
+        cy.wrap($close.first()).click()
+      }
+    } else if (attempt < maxRetries) {
+      cy.wait(retryDelay)
+      tryCloseConsoleWelcomeTourModal(attempt + 1, maxRetries, retryDelay)
+    }
+  })
+}
+
+/**
  * Dismiss clusters onboarding modal if it appears (used after login and after session restore).
  */
 const tryCloseOnboardingModal = (attempt = 1, maxRetries = 15, retryDelay = 2000) => {
@@ -14,6 +48,19 @@ const tryCloseOnboardingModal = (attempt = 1, maxRetries = 15, retryDelay = 2000
     }
   })
 }
+
+/**
+ * Open the top perspective menu and choose Fleet Management (Flight / edge console).
+ */
+Cypress.Commands.add('selectFleetManagementPerspective', () => {
+  cy.get('[data-test-id="perspective-switcher-toggle"]', { timeout: 30000 })
+    .should('be.visible')
+    .click()
+  cy.get('[data-test-id="perspective-switcher-menu-option"]')
+    .contains('Fleet Management')
+    .should('be.visible')
+    .click()
+})
 
 Cypress.Commands.add('login', (url=`${Cypress.env('host')}`, auth=`${Cypress.env('auth')}`, user=`${Cypress.env('username')}`, password=`${Cypress.env('password')}`) => {
     cy.visit(url, { timeout: 60000, retryOnStatusCodeFailure: true })
@@ -30,7 +77,11 @@ Cypress.Commands.add('login', (url=`${Cypress.env('host')}`, auth=`${Cypress.env
         cy.get('#inputPassword').should('have.value', password)
         cy.get('#co-login-button').click()
       })
+    tryCloseConsoleWelcomeTourModal()
     tryCloseOnboardingModal()
+    if (Cypress.env('useAcmNavigation')) {
+      cy.selectFleetManagementPerspective()
+    }
     cy.url().should('include', `${Cypress.env('host')}`)    
 })
 
@@ -51,7 +102,11 @@ Cypress.Commands.add('ensureLoggedIn', () => {
     }
   )
   cy.visit(host, { timeout: 60000, retryOnStatusCodeFailure: true })
+  tryCloseConsoleWelcomeTourModal()
   tryCloseOnboardingModal()
+  if (Cypress.env('useAcmNavigation')) {
+    cy.selectFleetManagementPerspective()
+  }
   cy.url().should('include', host)
 })
 

@@ -5,15 +5,31 @@ describe('Repository Management', () => {
     cy.ensureLoggedIn()
   })
 
-  /* it('Should create a repository', () => {
-    repositoriesPage.createRepository(`${Cypress.env('repository')}`, `${Cypress.env('revision')}`, `${Cypress.env('resource')}`)
-  }) */
+  describe('negative tests', () => {
+    it('Should show validation error for illegal repository name', () => {
+      repositoriesPage.assertIllegalRepositoryNameValuesShowValidation()
+    })
 
-  it('Should edit a repository', () => {
-    repositoriesPage.editRepository(`${Cypress.env('repository')}`)
+    it('Should show validation error for repository URL without http(s)://', () => {
+      repositoriesPage.assertIllegalRepositoryUrlValuesShowValidation()
+    })
+
+    it('Should show validation error for illegal resource sync name', () => {
+      repositoriesPage.assertIllegalResourceSyncNameValuesShowValidation()
+    })
   })
 
-  /* it('Should delete a repository', () => {
-    repositoriesPage.deleteRepository(`${Cypress.env('repository')}`)
-  }) */
+  describe('happy path', () => {
+    /* it('Should create a repository', () => {
+      repositoriesPage.createRepository(`${Cypress.env('repository')}`, `${Cypress.env('revision')}`, `${Cypress.env('resource')}`)
+    }) */
+
+    it('Should edit a repository', () => {
+      repositoriesPage.editRepository(`${Cypress.env('repository')}`)
+    })
+
+    /* it('Should delete a repository', () => {
+      repositoriesPage.deleteRepository(`${Cypress.env('repository')}`)
+    }) */
+  })
 })

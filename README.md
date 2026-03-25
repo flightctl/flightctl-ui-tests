@@ -14,6 +14,11 @@ install with:
 
 ## Execution
 
+**UI navigation:** By default tests assume a flat sidebar (no "Edge Management" submenu). For ACM-style UI with multi-level navigation, set:
+```bash
+export CYPRESS_USE_ACM_NAVIGATION=true
+```
+
 To run the app in cypress folder you need to run:
 ```
 export OPENSHIFT_PASSWORD="userpass"
@@ -33,6 +38,10 @@ npx cypress open
 ```
 
 To load on GUI mode.
+
+**Login session & page state:** Config uses **`testIsolation: false`** (same approach as `kni-assisted-installer-auto/ui_tests`): the browser is **not** fully reset between `it` blocks, so you stay on the same page/session like a long wizard flow. Each spec calls **`before(() => cy.ensureLoggedIn())`** once (not `beforeEach`), so Cypress does not `cy.visit` the console before every test—only `cy.session` restores auth when needed.
+
+`cy.ensureLoggedIn()` still uses [`cy.session()`](https://docs.cypress.io/api/commands/session) so the OAuth flow runs once until the session key changes. **Tradeoff:** tests in the same file can depend on order and leftover UI state; switch back to `testIsolation: true` and `beforeEach` if you need fully independent tests.
 
 If you want to load automaticly you need to run this command
 

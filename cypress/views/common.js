@@ -11,28 +11,43 @@ export const common = {
    * @param {string} page - The page to navigate to (e.g., 'Devices', 'Fleets', 'Repositories')
    */
   navigateTo: (page) => {
+    /** Standalone: data-testid + id on masthead toggle; ACM may use #nav-toggle only */
+    const navToggle = '[data-testid="nav-toggle"], #page-toggle-button, #nav-toggle'
+
     if (Cypress.env('useAcmNavigation')) {
-      cy.get('#nav-toggle', { timeout: 30000 }).should('exist')
+      const acmSidebar = '.pf-v6-c-page__sidebar'
+      cy.get(navToggle, { timeout: 30000 }).should('exist')
       // Only open the sidebar if it's collapsed (clicking when open would close it)
       cy.get('body').then(($body) => {
         const sidebarExpanded =
           $body.find('.pf-v6-c-page__sidebar.pf-m-expanded').length > 0 ||
-          $body.find('#nav-toggle').attr('aria-expanded') === 'true'
+          $body.find(navToggle).attr('aria-expanded') === 'true'
         if (!sidebarExpanded) {
-          cy.get('#nav-toggle').click()
+          cy.get(navToggle).first().click()
         }
       })
-      cy.contains('Edge Management').click()
-      cy.contains(page).click()
+      cy.get(acmSidebar, { timeout: 30000 }).should('be.visible')
+      cy.wait(1000)
+      // Re-query on click: wrap($btn) can fail if the nav re-renders after sidebar opens.
+      cy.contains('button', 'Edge Management', { timeout: 30000 })
+        .should('be.visible')
+        .then(($btn) => {
+          if ($btn.attr('aria-expanded') === 'true') {
+            return
+          }
+          cy.contains('button', 'Edge Management').should('be.visible').click()
+        })
+      cy.get(acmSidebar).contains(page).click()
       common.selectOrganizationIfNeeded('Default')
     } else {
       const sidebar = '.pf-v6-c-page__sidebar'
       common.selectOrganizationIfNeeded('Default')
-      cy.get('#page-toggle-button', { timeout: 30000 }).should('exist')
+      cy.get('[data-testid="nav-toggle"], #page-toggle-button', { timeout: 30000 }).should('exist')
       cy.get('body').then(($body) => {
-        const sidebarExpanded = $body.find('#page-toggle-button').attr('aria-expanded') === 'true' 
+        const toggle = $body.find('[data-testid="nav-toggle"], #page-toggle-button').first()
+        const sidebarExpanded = toggle.attr('aria-expanded') === 'true'
         if (!sidebarExpanded) {
-          cy.get('#page-toggle-button').click()
+          cy.get('[data-testid="nav-toggle"], #page-toggle-button').first().click()
         }
       })
       cy.get(sidebar).contains(page).click()

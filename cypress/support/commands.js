@@ -43,6 +43,9 @@ const tryCloseOnboardingModal = (attempt = 1, maxRetries = 15, retryDelay = 2000
     if ($btn.length > 0) {
       cy.get('[data-ouia-component-id="clustersOnboardingModal-ModalBoxCloseButton"]').click()
     } else if (attempt < maxRetries) {
+      cy.log(
+        `Clusters onboarding modal not found yet (attempt ${attempt}/${maxRetries}); waiting ${retryDelay}ms before retry`,
+      )
       cy.wait(retryDelay)
       tryCloseOnboardingModal(attempt + 1, maxRetries, retryDelay)
     }

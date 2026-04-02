@@ -127,6 +127,14 @@ export const repositoriesPage = {
    */
   cancelCreateRepositoryForm: () => {
     cy.get('button').contains('Cancel').click()
+    cy.get('body').then(($body) => {
+      const discardBtn = $body.find('button').filter((_, el) =>
+        (el.textContent || '').includes('Discard changes'),
+      )
+      if (discardBtn.length) {
+        cy.wrap(discardBtn.first()).click()
+      }
+    })
     cy.get('#rich-validation-field-name').should('not.exist')
   },
 

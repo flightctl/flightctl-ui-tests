@@ -114,24 +114,26 @@ Cypress.Commands.add('ensureLoggedIn', () => {
 })
 
 Cypress.Commands.add('downloadClifile', (platform = `${Cypress.env('platform')}`, arch = `${Cypress.env('arch')}`) => {
-    let filename
-    if (platform === 'Windows') {
-        if (arch === 'ARM 64') {
-            filename = `${platform}-flightctl-arm64.zip`;
-        } else {
-            filename = `${platform}-flightctl-x86_64.zip`;
-        }
+  let filename
+  if (platform === 'Windows') {
+    if (arch === 'ARM 64') {
+      filename = `${platform}-flightctl-arm64.zip`
     } else {
-        filename = `${platform}-${arch}-flightctl.tar.gz`;
+      filename = `${platform}-flightctl-x86_64.zip`
     }
-    cy.get('[data-test="help-dropdown-toggle"]').click().should('be.visible')
-    cy.contains('Command Line Tools').click()
-    cy.log(`Download flightctl for ${platform} for ${arch}`)
-    cy.get('.co-external-link').contains(`Download flightctl for ${platform} for ${arch}`)
-            .should('have.attr', 'href').then((href) => {
-                cy.downloadFile(`${href}`, 'downloads', filename);
-            })
-    let fullpath = `downloads/${filename}`
-    cy.log(`Downloaded file: ${fullpath}`)
-    cy.readFile(fullpath).should('exist')
+  } else {
+    filename = `${platform}-${arch}-flightctl.tar.gz`
+  }
+  cy.get('button[aria-label="Help menu"]').click().should('be.visible')
+  cy.contains('Command Line Tools').click()
+  cy.log(`Download flightctl for ${platform} for ${arch}`)
+  cy.get('.co-external-link')
+    .contains(`Download flightctl for ${platform} for ${arch}`)
+    .should('have.attr', 'href')
+    .then((href) => {
+      cy.downloadFile(`${href}`, 'downloads', filename)
+    })
+  const fullpath = `downloads/${filename}`
+  cy.log(`Downloaded file: ${fullpath}`)
+  cy.readFile(fullpath).should('exist')
 })

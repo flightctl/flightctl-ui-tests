@@ -13,10 +13,20 @@ module.exports = defineConfig({
     // Use before() + cy.ensureLoggedIn() once per top-level describe (not beforeEach).
     testIsolation: false,
     setupNodeEvents(on, config) {
-      on('task', {downloadFile})
+      on('task', { downloadFile })
+      // HTTPS oauth → http://localhost callback needs chromeWebSecurity off for the device-login spec
+      // only; keep default true for other e2e specs.
+      const norm = (p) => String(p).replace(/\\/g, '/')
+      const specs = config.specs || []
+      const onlyAuthProviderLogin =
+        specs.length > 0 && specs.every((s) => norm(s).includes('/auth-provider-login/'))
+      if (onlyAuthProviderLogin || process.env.CYPRESS_AUTH_PROVIDER_DEVICE_LOGIN === 'true') {
+        config.chromeWebSecurity = false
+      }
+      return config
     },
     supportFile: 'support/e2e.js',
-    specPattern: 'e2e/*.cy.{js,jsx,ts,tsx}'
+    specPattern: ['e2e/*.cy.{js,jsx,ts,tsx}', 'auth-provider-login/*.cy.{js,jsx,ts,tsx}'],
   },
   env: {
     host: process.env.OPENSHIFT_HOST || 'https://console-openshift-console.apps.ocp-edge-cluster-0.qe.lab.redhat.com',
@@ -33,5 +43,12 @@ module.exports = defineConfig({
     repositoryname: process.env.REPOSITORYNAME || 'test-repository',
     resourcename: process.env.RESOURCENAME || 'base/fedora-bootc/deploy/fleet.yaml',
     useAcmNavigation: process.env.CYPRESS_USE_ACM_NAVIGATION !== 'false',
+    // auth-provider-login.cy.js: full authorize URL from `flightctl login --web --no-browser` output
+    flightctlOAuthAuthorizeUrl:
+      process.env.CYPRESS_FLIGHTCTL_OAUTH_AUTHORIZE_URL || process.env.FLIGHTCTL_OAUTH_AUTHORIZE_URL || '',
+    flightctlCallbackPort: parseInt(
+      process.env.CYPRESS_FLIGHTCTL_CALLBACK_PORT || process.env.FLIGHTCTL_CALLBACK_PORT || '18080',
+      10,
+    ),
   },
 })

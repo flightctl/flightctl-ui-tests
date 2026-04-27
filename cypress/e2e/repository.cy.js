@@ -25,11 +25,11 @@ describe('Repository Management', () => {
     }) */
 
     it('Should edit a repository', () => {
-      repositoriesPage.editRepository(`${Cypress.env('repository')}`)
+      repositoriesPage.editRepository(`${Cypress.env('repositoryname')}`)
     })
 
     /* it('Should delete a repository', () => {
-      repositoriesPage.deleteRepository(`${Cypress.env('repository')}`)
+      repositoriesPage.deleteRepository(`${Cypress.env('repositoryname')}`)
     }) */
   })
 })

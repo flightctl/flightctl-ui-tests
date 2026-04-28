@@ -3,9 +3,10 @@ import { common } from './common'
 /** Fleet name validation: red error icon color when invalid */
 const VALIDATION_ERROR_ICON_COLOR = '#b1380b'
 
+/** Fleet wizard General info uses RichValidationTextField name="name" */
 function assertFleetNameValidationIconErrorColor() {
-  cy.get('button[aria-label="Validation"]').should('be.visible')
-  cy.get('button[aria-label="Validation"]')
+  cy.get('[data-testid="rich-validation-field-name-validation-button"]').should('be.visible')
+  cy.get('[data-testid="rich-validation-field-name-validation-button"]')
     .find('svg')
     .should('have.attr', 'color', VALIDATION_ERROR_ICON_COLOR)
 }
@@ -22,16 +23,16 @@ export const fleetsPage = {
     cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').should('exist')
     cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').should('be.visible')
     cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').click()
-    cy.get('#rich-validation-field-name').should('be.visible')
+    cy.get('[data-testid="rich-validation-field-name"]').should('be.visible')
   },
 
   /**
    * Fill the Fleet name field on the open Create fleet wizard.
    */
   fillFleetNameInCreateWizard: (name) => {
-    cy.get('#rich-validation-field-name').clear()
-    cy.get('#rich-validation-field-name').type(name, { delay: 0 })
-    cy.get('#rich-validation-field-name').should('have.value', name)
+    cy.get('[data-testid="rich-validation-field-name"]').clear()
+    cy.get('[data-testid="rich-validation-field-name"]').type(name, { delay: 0 })
+    cy.get('[data-testid="rich-validation-field-name"]').should('have.value', name)
   },
 
   /**
@@ -48,16 +49,14 @@ export const fleetsPage = {
    */
   expectInvalidFleetNameBlocksWizard: () => {
     assertFleetNameValidationIconErrorColor()
-    cy.get('footer.pf-v6-c-wizard__footer').within(() => {
-      cy.contains('button.pf-m-primary', 'Next').should('be.disabled')
-    })
+    cy.get('[data-testid="wizard-next-button"]').should('be.disabled')
   },
 
   /**
    * Close the Create fleet wizard without submitting (Cancel).
    */
   closeCreateFleetWizard: () => {
-    cy.contains('Cancel').click()
+    cy.get('[data-testid="wizard-cancel-button"]').click()
     cy.get('body').then(($body) => {
       const discardBtn = $body.find('button').filter((_, el) =>
         (el.textContent || '').includes('Discard changes'),
@@ -66,7 +65,7 @@ export const fleetsPage = {
         cy.wrap(discardBtn.first()).click()
       }
     })
-    cy.get('#rich-validation-field-name').should('not.exist')
+    cy.get('[data-testid="rich-validation-field-name"]').should('not.exist')
   },
 
   /**
@@ -74,21 +73,21 @@ export const fleetsPage = {
    */
   createFleet: (img = Cypress.env('image'), fleetname = Cypress.env('fleetname')) => {
     common.navigateTo('Fleets')
-    
+
     cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').should('exist')
     cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').should('be.visible')
     cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').click()
-    cy.get('#rich-validation-field-name').should('be.visible')
-    cy.get('#rich-validation-field-name').type(fleetname)
-    cy.get('#rich-validation-field-name').should('have.value', 'test-fleet')
+    cy.get('[data-testid="rich-validation-field-name"]').should('be.visible')
+    cy.get('[data-testid="rich-validation-field-name"]').type(fleetname)
+    cy.get('[data-testid="rich-validation-field-name"]').should('have.value', 'test-fleet')
     cy.get('.pf-v6-l-stack__item > .pf-v6-c-label-group > .pf-v6-c-label-group__main > .pf-v6-c-label-group__list').click()
-    cy.get('span.pf-v6-c-button__text').contains('Next').click()
-    cy.get('#textfield-osImage').should('be.visible')
-    cy.get('#textfield-osImage').type(img)
-    cy.get('#textfield-osImage').should('have.value', img)
-    cy.get('span.pf-v6-c-button__text').contains('Next').click()
-    cy.get('span.pf-v6-c-button__text').contains('Next').click()
-    cy.get('span.pf-v6-c-button__text').contains('Create fleet').click()
+    cy.get('[data-testid="wizard-next-button"]').click()
+    cy.get('[data-testid="textfield-osImage"]').should('be.visible')
+    cy.get('[data-testid="textfield-osImage"]').type(img)
+    cy.get('[data-testid="textfield-osImage"]').should('have.value', img)
+    cy.get('[data-testid="wizard-next-button"]').click()
+    cy.get('[data-testid="wizard-next-button"]').click()
+    cy.get('[data-testid="wizard-save-button"]').click()
   },
 
   /**
@@ -103,14 +102,14 @@ export const fleetsPage = {
     cy.get('.pf-v6-c-table__action > .pf-v6-c-menu-toggle').should('be.visible')
     cy.get('[data-ouia-component-id="OUIA-Generated-DropdownItem-2"] > .pf-v6-c-menu__item > .pf-v6-c-menu__item-main > .pf-v6-c-menu__item-text').click()
     cy.get(':nth-child(1) > .pf-v6-c-form__group-label > .pf-v6-c-form__label > .pf-v6-c-form__label-text').should('contain', 'Fleet name')
-    cy.get('span.pf-v6-c-button__text').contains('Next').click()
-    cy.get('#textfield-osImage').should('be.visible')
-    cy.get('#textfield-osImage').clear()
-    cy.get('#textfield-osImage').type(img1)
-    cy.get('#textfield-osImage').should('have.value', img1)
-    cy.get('span.pf-v6-c-button__text').contains('Next').click()
-    cy.get('span.pf-v6-c-button__text').contains('Next').click()
-    cy.get('span.pf-v6-c-button__text').contains('Next').click()
+    cy.get('[data-testid="wizard-next-button"]').click()
+    cy.get('[data-testid="textfield-osImage"]').should('be.visible')
+    cy.get('[data-testid="textfield-osImage"]').clear()
+    cy.get('[data-testid="textfield-osImage"]').type(img1)
+    cy.get('[data-testid="textfield-osImage"]').should('have.value', img1)
+    cy.get('[data-testid="wizard-next-button"]').click()
+    cy.get('[data-testid="wizard-next-button"]').click()
+    cy.get('[data-testid="wizard-save-button"]').click()
     cy.get('.pf-v6-c-title').should('contain', fleetname)
   },
 
@@ -137,18 +136,18 @@ export const fleetsPage = {
     cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(2) > .pf-v6-c-button').should('exist')
     cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(2) > .pf-v6-c-button').should('be.visible')
     cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(2) > .pf-v6-c-button').click()
-    cy.get('#rich-validation-field-name').type(fleetname)
-    cy.get('#textfield-url').type(repo)
-    cy.get('span.pf-v6-c-button__text').contains('Next').click()
-    cy.get('#rich-validation-field-resourceSyncs\\[0\\]\\.name').clear()
-    cy.get('#rich-validation-field-resourceSyncs\\[0\\]\\.name').type('test-resource')
-    cy.get('#textfield-resourceSyncs\\[0\\]\\.targetRevision').clear()
-    cy.get('#textfield-resourceSyncs\\[0\\]\\.targetRevision').type(revision)
-    cy.get('#textfield-resourceSyncs\\[0\\]\\.path').clear()
-    cy.get('#textfield-resourceSyncs\\[0\\]\\.path').type(resourcename)
-    cy.get('span.pf-v6-c-button__text').contains('Next').should('be.visible')
-    cy.get('span.pf-v6-c-button__text').contains('Next').click()
-    cy.get('span.pf-v6-c-button__text').contains('Import').click()
+    cy.get('[data-testid="rich-validation-field-name"]').type(fleetname)
+    cy.get('[data-testid="textfield-url"]').type(repo)
+    cy.get('[data-testid="wizard-next-button"]').click()
+    cy.get('[data-testid="rich-validation-field-resourceSyncs[0].name"]').clear()
+    cy.get('[data-testid="rich-validation-field-resourceSyncs[0].name"]').type('test-resource')
+    cy.get('[data-testid="textfield-resourceSyncs[0].targetRevision"]').clear()
+    cy.get('[data-testid="textfield-resourceSyncs[0].targetRevision"]').type(revision)
+    cy.get('[data-testid="textfield-resourceSyncs[0].path"]').clear()
+    cy.get('[data-testid="textfield-resourceSyncs[0].path"]').type(resourcename)
+    cy.get('[data-testid="wizard-next-button"]').should('be.visible')
+    cy.get('[data-testid="wizard-next-button"]').click()
+    cy.get('[data-testid="wizard-save-button"]').click()
     cy.get('td[data-label="Status"]', { timeout: 1000000 }).should('contain', 'Valid')
   },
 }

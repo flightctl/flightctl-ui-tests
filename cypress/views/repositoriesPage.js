@@ -25,6 +25,13 @@ const INVALID_REPOSITORY_URLS = [
 
 const REPOSITORY_URL_ERROR_HELPER_TEXT = 'Enter a valid repository URL'
 
+/** Name field validation popover trigger (RichValidationTextField) */
+const REPOSITORY_NAME_VALIDATION_BTN = '[data-testid="rich-validation-field-name-validation-button"]'
+
+/** Resource sync [0] name field validation button */
+const RESOURCE_SYNC_0_NAME_VALIDATION_BTN =
+  '[data-testid="rich-validation-field-resourceSyncs[0].name-validation-button"]'
+
 /**
  * RepositoriesPage object for repository management operations
  */
@@ -35,9 +42,9 @@ export const repositoriesPage = {
   assertIllegalRepositoryNameValuesShowValidation: () => {
     repositoriesPage.openCreateRepositoryForm()
     cy.wrap(INVALID_REPOSITORY_NAMES).each((invalidName) => {
-      cy.get('#rich-validation-field-name').clear()
-      cy.get('#rich-validation-field-name').type(invalidName)
-      cy.get('#rich-validation-field-name').should('have.value', invalidName)
+      cy.get('[data-testid="rich-validation-field-name"]').clear()
+      cy.get('[data-testid="rich-validation-field-name"]').type(invalidName)
+      cy.get('[data-testid="rich-validation-field-name"]').should('have.value', invalidName)
       repositoriesPage.expectFirstValidationIconError()
     })
     repositoriesPage.cancelCreateRepositoryForm()
@@ -48,14 +55,14 @@ export const repositoriesPage = {
    */
   assertIllegalRepositoryUrlValuesShowValidation: () => {
     repositoriesPage.openCreateRepositoryForm()
-    cy.get('#rich-validation-field-name').clear().type('valid-repo-name')
-    cy.get('#rich-validation-field-name').should('have.value', 'valid-repo-name')
-    cy.get('#textfield-url').should('be.visible')
+    cy.get('[data-testid="rich-validation-field-name"]').clear().type('valid-repo-name')
+    cy.get('[data-testid="rich-validation-field-name"]').should('have.value', 'valid-repo-name')
+    cy.get('[data-testid="textfield-url"]').should('be.visible')
     cy.wrap(INVALID_REPOSITORY_URLS).each((invalidUrl) => {
-      cy.get('#textfield-url').clear()
-      cy.get('#textfield-url').type(invalidUrl)
-      cy.get('#textfield-url').should('have.value', invalidUrl)
-      cy.get('#textfield-url')
+      cy.get('[data-testid="textfield-url"]').clear()
+      cy.get('[data-testid="textfield-url"]').type(invalidUrl)
+      cy.get('[data-testid="textfield-url"]').should('have.value', invalidUrl)
+      cy.get('[data-testid="textfield-url"]')
         .closest('.pf-v6-c-form__group')
         .find('.pf-v6-c-helper-text__item-text')
         .should('be.visible')
@@ -69,19 +76,16 @@ export const repositoriesPage = {
    */
   openCreateRepositoryForm: () => {
     common.navigateTo('Repositories')
-    cy.contains('button.pf-v6-c-button.pf-m-primary', 'Create repository').should('be.visible').click()
-    cy.get('#rich-validation-field-name').should('be.visible')
+    cy.get('[data-testid="toolbar-create-repository"]').should('be.visible').click()
+    cy.get('[data-testid="rich-validation-field-name"]').should('be.visible')
   },
 
   /**
    * Assert the first validation icon on the page shows error state (#b1380b on nested SVG).
    */
   expectFirstValidationIconError: () => {
-    cy.get('button[aria-label="Validation"]').first().should('be.visible')
-    cy.get('button[aria-label="Validation"]')
-      .first()
-      .find('svg')
-      .should('have.attr', 'color', VALIDATION_ERROR_ICON_COLOR)
+    cy.get(REPOSITORY_NAME_VALIDATION_BTN).should('be.visible')
+    cy.get(REPOSITORY_NAME_VALIDATION_BTN).find('svg').should('have.attr', 'color', VALIDATION_ERROR_ICON_COLOR)
   },
 
   /**
@@ -89,9 +93,8 @@ export const repositoriesPage = {
    * Same control as first: button.pf-v6-c-button.pf-m-plain with aria-label="Validation"; SVG color #b1380b.
    */
   expectSecondValidationIconError: () => {
-    cy.get('button[aria-label="Validation"]').eq(1).should('be.visible')
-    cy.get('button[aria-label="Validation"]')
-      .eq(1)
+    cy.get(RESOURCE_SYNC_0_NAME_VALIDATION_BTN).should('be.visible')
+    cy.get(RESOURCE_SYNC_0_NAME_VALIDATION_BTN)
       .find('svg')
       .should('have.attr', 'color', VALIDATION_ERROR_ICON_COLOR)
   },
@@ -100,13 +103,13 @@ export const repositoriesPage = {
    * Resource sync name field on create form (same naming rules as repository name).
    */
   assertIllegalResourceSyncNameValuesShowValidation: () => {
-    const resourceSyncNameField = '#rich-validation-field-resourceSyncs\\[0\\]\\.name'
+    const resourceSyncNameField = '[data-testid="rich-validation-field-resourceSyncs[0].name"]'
     const validUrl = Cypress.env('repository') || 'https://github.com/flightctl/flightctl-demos'
 
     repositoriesPage.openCreateRepositoryForm()
-    cy.get('#rich-validation-field-name').clear().type('valid-repo-name')
-    cy.get('#textfield-url').clear().type(validUrl)
-    cy.get('#textfield-url').should('have.value', validUrl)
+    cy.get('[data-testid="rich-validation-field-name"]').clear().type('valid-repo-name')
+    cy.get('[data-testid="textfield-url"]').clear().type(validUrl)
+    cy.get('[data-testid="textfield-url"]').should('have.value', validUrl)
     cy.get('#use-resource-syncs').then(($cb) => {
       if (!$cb.is(':checked')) {
         cy.wrap($cb).check({ force: true })
@@ -126,7 +129,7 @@ export const repositoriesPage = {
    * Leave the create-repository form without submitting (Cancel).
    */
   cancelCreateRepositoryForm: () => {
-    cy.get('button').contains('Cancel').click()
+    cy.get('[data-testid="repository-form-cancel"]').click()
     cy.get('body').then(($body) => {
       const discardBtn = $body.find('button').filter((_, el) =>
         (el.textContent || '').includes('Discard changes'),
@@ -135,7 +138,7 @@ export const repositoriesPage = {
         cy.wrap(discardBtn.first()).click()
       }
     })
-    cy.get('#rich-validation-field-name').should('not.exist')
+    cy.get('[data-testid="rich-validation-field-name"]').should('not.exist')
   },
 
   /**
@@ -143,20 +146,20 @@ export const repositoriesPage = {
    */
   createRepository: (reponame = Cypress.env('repositoryname'), repo = Cypress.env('repository'), revision = Cypress.env('revision'), resource = Cypress.env('resource')) => {
     common.navigateTo('Repositories')
-    
-    cy.get('.pf-v6-c-toolbar__content-section > :nth-child(2) > .pf-v6-c-button').should('be.visible')
-    cy.get('.pf-v6-c-toolbar__content-section > :nth-child(2) > .pf-v6-c-button').click()
-    cy.get('#rich-validation-field-name').should('be.visible')
-    cy.get('#rich-validation-field-name').type('test-repository')
-    cy.get('#rich-validation-field-name').should('have.value', 'test-repository')
+
+    cy.get('[data-testid="toolbar-create-repository"]').should('be.visible')
+    cy.get('[data-testid="toolbar-create-repository"]').click()
+    cy.get('[data-testid="rich-validation-field-name"]').should('be.visible')
+    cy.get('[data-testid="rich-validation-field-name"]').type('test-repository')
+    cy.get('[data-testid="rich-validation-field-name"]').should('have.value', 'test-repository')
     cy.get('#use-resource-syncs').should('be.visible')
-    cy.get('#textfield-url').type(repo)
-    cy.get('#textfield-url').should('have.value', repo)
+    cy.get('[data-testid="textfield-url"]').type(repo)
+    cy.get('[data-testid="textfield-url"]').should('have.value', repo)
     cy.get('.pf-v6-c-form__section').should('be.visible')
     cy.contains('Resource sync name').type('test-resource')
-    cy.get('#textfield-resourceSyncs\\[0\\]\\.targetRevision').type(revision)
-    cy.get('#textfield-resourceSyncs\\[0\\]\\.path').type(resource)
-    cy.get('.pf-v6-c-form__actions > .pf-m-primary').click()
+    cy.get('[data-testid="textfield-resourceSyncs[0].targetRevision"]').type(revision)
+    cy.get('[data-testid="textfield-resourceSyncs[0].path"]').type(resource)
+    cy.get('[data-testid="repository-form-submit"]').click()
     cy.get('.pf-v6-c-description-list__text > .pf-v6-l-flex > :nth-child(2)', { timeout: 100000 }).should('contain', 'Accessible')
   },
 
@@ -165,20 +168,23 @@ export const repositoriesPage = {
    */
   editRepository: (reponame = Cypress.env('repositoryname'), newyaml = Cypress.env('newyaml'), resourcename = Cypress.env('resourcename'), revision = Cypress.env('revision')) => {
     common.navigateTo('Repositories')
-    
-    cy.contains(reponame).should('be.visible')
-    cy.get('.pf-v6-c-table__action').click()
-    cy.get('[data-ouia-component-id="OUIA-Generated-DropdownItem-1"] > .pf-v6-c-menu__item > .pf-v6-c-menu__item-main > .pf-v6-c-menu__item-text').contains('Edit repository').click()
-    cy.get('.pf-v6-c-check__body > .pf-m-link').click()
-    cy.get('#rich-validation-field-resourceSyncs\\[1\\]\\.name').should('be.visible')
-    cy.get('#rich-validation-field-resourceSyncs\\[1\\]\\.name').clear()
-    cy.get('#rich-validation-field-resourceSyncs\\[1\\]\\.name').type('test-resource1')
-    cy.get('#rich-validation-field-resourceSyncs\\[1\\]\\.name').should('have.value', 'test-resource1')
-    cy.get('#textfield-resourceSyncs\\[1\\]\\.targetRevision').type(revision)
-    cy.get('#textfield-resourceSyncs\\[1\\]\\.path').clear()
-    cy.get('#textfield-resourceSyncs\\[1\\]\\.path').type(newyaml)
-    cy.get('.pf-v6-c-form__actions > .pf-m-primary').click()
-    cy.get('.pf-v6-c-description-list__text > .pf-v6-l-flex > :nth-child(2)', { timeout: 100000 }).should('contain', 'Accessible')
+
+    cy.contains('[data-testid^="repository-name-link-"]', Cypress.env('fleetname')).should('be.visible')
+    cy.contains('[data-testid^="repository-name-link-"]', Cypress.env('fleetname'))
+      .closest('tr')
+      .find('[data-testid^="repository-row-actions-"] .pf-v6-c-menu-toggle')
+      .click()
+    cy.contains('.pf-v6-c-menu__item-text', 'Edit repository').should('be.visible').click()
+    cy.get('[data-testid="repository-add-resource-sync-button"]').click()
+    cy.get('[data-testid="rich-validation-field-resourceSyncs[1].name"]').should('be.visible')
+    cy.get('[data-testid="rich-validation-field-resourceSyncs[1].name"]').clear()
+    cy.get('[data-testid="rich-validation-field-resourceSyncs[1].name"]').type('test-resource1')
+    cy.get('[data-testid="rich-validation-field-resourceSyncs[1].name"]').should('have.value', 'test-resource1')
+    cy.get('[data-testid="textfield-resourceSyncs[1].targetRevision"]').type(revision)
+    cy.get('[data-testid="textfield-resourceSyncs[1].path"]').clear()
+    cy.get('[data-testid="textfield-resourceSyncs[1].path"]').type(newyaml)
+    cy.get('[data-testid="repository-form-submit"]').click()
+    cy.get('[data-testid="repository-details-sync-status"]', { timeout: 100000 }).should('contain', 'Accessible')
   },
 
   /**
@@ -186,13 +192,16 @@ export const repositoriesPage = {
    */
   deleteRepository: (reponame = Cypress.env('repositoryname')) => {
     common.navigateTo('Repositories')
-    
-    cy.get('[data-label="Name"]').should('contain', reponame)
-    cy.get('.pf-v6-c-table__tbody > .pf-v6-c-table__tr > .pf-v6-c-table__check > label > input').should('be.visible')
-    cy.get('.pf-v6-c-table__tbody > .pf-v6-c-table__tr > .pf-v6-c-table__check > label > input').click()
-    cy.contains('Delete repositories').should('be.visible')
-    cy.contains('Delete repositories').click()
-    cy.get('.pf-m-danger').should('be.visible')
-    cy.get('.pf-m-danger').click()
+
+    cy.get('[data-testid="repositories-table"]').should('contain', reponame)
+    cy.contains('[data-testid^="repository-name-link-"]', reponame)
+      .closest('tr')
+      .find('input[type="checkbox"]')
+      .should('be.visible')
+      .click()
+    cy.get('[data-testid="toolbar-delete-repositories"]').should('be.visible')
+    cy.get('[data-testid="toolbar-delete-repositories"]').click()
+    cy.get('[data-testid="modal-delete-repositories-confirm"]').should('be.visible')
+    cy.get('[data-testid="modal-delete-repositories-confirm"]').click()
   },
 }

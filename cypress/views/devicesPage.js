@@ -20,6 +20,12 @@ const EVENTS_CONTAINER = '[data-testid="device-events-list"]'
 /** RichValidationTextField validation button for approve modal alias */
 const DEVICE_ALIAS_VALIDATION_BTN = '[data-testid="rich-validation-field-deviceAlias-validation-button"]'
 
+/** Devices scale demo: label applied by devicesimulator (`--label fleet=scale-fleet-00`) */
+export const SCALE_FLEET_LABEL_TEXT = 'fleet=scale-fleet-00'
+
+const enrolledDeviceRows = () =>
+  cy.get('[data-testid="enrolled-devices-table"] tbody tr[data-testid^="enrolled-device-row-"]')
+
 /**
  * DevicesPage object for device management operations.
  * Prefer data-testid selectors from flightctl-ui for stability.
@@ -184,5 +190,96 @@ export const devicesPage = {
     cy.get('[data-testid="device-details-tab-terminal"]', { timeout: 30000 }).should('be.visible').click()
     cy.get('[data-testid="device-terminal-panel"]', { timeout: 50000 }).should('be.visible')
     cy.get('[data-testid="device-terminal-panel"]').click()
+  },
+
+  /** Leave decommissioned list and show enrolled devices (same switch data-testid on both tables). */
+  ensureEnrolledDevicesView: () => {
+    cy.get('body').then(($body) => {
+      const onDecommissioned = $body.find('[data-testid="show-decommissioned-devices-switch"][aria-checked="true"]')
+        .length
+      if (onDecommissioned) {
+        cy.get('[data-testid="show-decommissioned-devices-switch"]')
+          .filter('[aria-checked="true"]')
+          .closest('label')
+          .click()
+      }
+    })
+    cy.get('[data-testid="enrolled-devices-table"]', { timeout: 60000 }).should('exist')
+  },
+
+  /**
+   * Filter enrolled devices by label using the “Labels and fleets” typeahead (must match CLI selector).
+   */
+  filterByFleetScaleLabel: () => {
+    common.navigateTo('Devices')
+    devicesPage.ensureEnrolledDevicesView()
+    cy.get('#typeahead-select-input', { timeout: 30000 }).should('be.visible')
+    cy.get('#typeahead-select-input').clear()
+    cy.get('#typeahead-select-input').type(SCALE_FLEET_LABEL_TEXT)
+    // Label options use `hasCheckbox` in the UI → PatternFly uses role="menuitem", not role="option".
+    cy.wait(1200)
+    cy.contains('[role="menuitem"], [role="option"]', SCALE_FLEET_LABEL_TEXT, { timeout: 120000 })
+      .should('be.visible')
+      .click()
+    // Close the typeahead panel so it does not stay open and block pagination / table clicks.
+    cy.get('[data-testid="list-page-title"]').should('be.visible').click()
+    cy.get('[data-testid="enrolled-devices-table"]', { timeout: 120000 }).should('exist')
+    enrolledDeviceRows().should('have.length.at.least', 1)
+  },
+
+  expectEnrolledDeviceRowsCount: (expected) => {
+    enrolledDeviceRows().should('have.length', expected)
+  },
+
+  /** “Devices” table is the second paginator when enrollment requests are listed above it. */
+  clickEnrolledDevicesNextPage: () => {
+    cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView()
+    cy.get('button[aria-label="Go to next page"]:visible').then(($buttons) => {
+      const idx = $buttons.length > 1 ? 1 : 0
+      cy.wrap($buttons.eq(idx)).should('not.be.disabled').click()
+    })
+    cy.get('button[aria-label="Go to next page"]:visible').then(($buttons) => {
+      const idx = $buttons.length > 1 ? 1 : 0
+      cy.wrap($buttons.eq(idx)).should('not.be.disabled')
+    })
+  },
+
+  goToFirstEnrolledDevicesPage: () => {
+    cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView()
+    cy.get('button[aria-label="Go to first page"]:visible').then(($buttons) => {
+      if ($buttons.length === 0) {
+        return
+      }
+      const idx = $buttons.length > 1 ? 1 : 0
+      const $btn = $buttons.eq(idx)
+      if (!$btn.is(':disabled')) {
+        cy.wrap($btn).click()
+      }
+    })
+    cy.get('button[aria-label="Go to first page"]:visible').then(($buttons) => {
+      if ($buttons.length === 0) {
+        return
+      }
+      const idx = $buttons.length > 1 ? 1 : 0
+      cy.wrap($buttons.eq(idx)).should('be.disabled')
+    })
+  },
+
+  goToEnrolledDevicesPageFromFirst: (pageNum) => {
+    devicesPage.goToFirstEnrolledDevicesPage()
+    for (let p = 1; p < pageNum; p++) {
+      devicesPage.clickEnrolledDevicesNextPage()
+    }
+  },
+
+  decommissionDeviceAtEnrolledRow: (rowIndex = 0) => {
+    cy.get(`[data-testid="enrolled-device-row-${rowIndex}"]`)
+      .find(`[data-testid^="device-row-actions-"] .pf-v6-c-menu-toggle`)
+      .click()
+    cy.contains('[role="menuitem"]', 'Decommission device').click()
+    cy.get('.pf-v6-c-modal-box').within(() => {
+      cy.contains('button.pf-m-danger', 'Decommission device').click()
+    })
+    cy.get('[data-testid="decommissioned-devices-table"]', { timeout: 120000 }).should('exist')
   },
 }

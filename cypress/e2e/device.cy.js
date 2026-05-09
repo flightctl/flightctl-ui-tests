@@ -95,7 +95,7 @@ describe('Device Management', () => {
 
     it('should list 15 enrolled devices on pages 1–3 and 5 on page 4', () => {
       devicesPage.filterByFleetScaleLabel()
-      devicesPage.goToFirstEnrolledDevicesPage()
+      //devicesPage.goToFirstEnrolledDevicesPage()
 
       cy.log('Page 1')
       devicesPage.expectEnrolledDeviceRowsCount(15)

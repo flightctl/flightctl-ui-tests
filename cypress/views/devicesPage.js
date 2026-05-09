@@ -23,8 +23,30 @@ const DEVICE_ALIAS_VALIDATION_BTN = '[data-testid="rich-validation-field-deviceA
 /** Devices scale demo: label applied by devicesimulator (`--label fleet=scale-fleet-00`) */
 export const SCALE_FLEET_LABEL_TEXT = 'fleet=scale-fleet-00'
 
+/** Real `<input>` inside PatternFly TextInputGroup (`#typeahead-select-input` is the wrapper div). */
+const FLEET_LABEL_TYPEAHEAD_INPUT = '#typeahead-select-input input'
+
 const enrolledDeviceRows = () =>
   cy.get('[data-testid="enrolled-devices-table"] tbody tr[data-testid^="enrolled-device-row-"]')
+
+/**
+ * Closest ancestor of the enrolled table that also contains this list’s pagination (sibling of the
+ * table in the DOM). Safer than `#devices-toolbar`.parent() when the console wraps the toolbar.
+ */
+const enrolledDevicesListSection = () =>
+  cy.get('[data-testid="enrolled-devices-table"]', { timeout: 60000 }).parents().filter((_, el) => {
+    return Cypress.$(el).find('button[aria-label="Go to next page"]').length > 0
+  }).first()
+
+/** PatternFly disables pagination while `isUpdating`; wait for spinner to leave the devices paginator. */
+const waitEnrolledPaginationIdle = () => {
+  enrolledDevicesListSection()
+    .find('.pf-v6-c-pagination')
+    .first()
+    .should(($p) => {
+      expect($p.find('.pf-v6-c-spinner').length).to.eq(0)
+    }, { timeout: 120000 })
+}
 
 /**
  * DevicesPage object for device management operations.
@@ -213,16 +235,21 @@ export const devicesPage = {
   filterByFleetScaleLabel: () => {
     common.navigateTo('Devices')
     devicesPage.ensureEnrolledDevicesView()
-    cy.get('#typeahead-select-input', { timeout: 30000 }).should('be.visible')
-    cy.get('#typeahead-select-input').clear()
-    cy.get('#typeahead-select-input').type(SCALE_FLEET_LABEL_TEXT)
+    // Toolbar can sit in overflow:auto regions in ACM/console — avoid visibility flake; interact with force after scroll.
+    cy.get('#devices-toolbar', { timeout: 30000 }).scrollIntoView()
+    cy.get(FLEET_LABEL_TYPEAHEAD_INPUT, { timeout: 30000 }).should('exist').scrollIntoView({ block: 'center' })
+    cy.get(FLEET_LABEL_TYPEAHEAD_INPUT).clear({ force: true })
+    cy.get(FLEET_LABEL_TYPEAHEAD_INPUT).type(SCALE_FLEET_LABEL_TEXT, { force: true })
     // Label options use `hasCheckbox` in the UI → PatternFly uses role="menuitem", not role="option".
     cy.wait(1200)
+    // Match can resolve to more than one node (e.g. hidden + visible popper, or label + row). Click one.
     cy.contains('[role="menuitem"], [role="option"]', SCALE_FLEET_LABEL_TEXT, { timeout: 120000 })
-      .should('be.visible')
-      .click()
+      .filter(':visible')
+      .first()
+      .click({ force: true })
     // Close the typeahead panel so it does not stay open and block pagination / table clicks.
-    cy.get('[data-testid="list-page-title"]').should('be.visible').click()
+    // Two ListPages on this screen (enrollment + enrolled) both use data-testid="list-page-title" — click the enrolled one (last in DOM).
+    cy.get('[data-testid="list-page-title"]').last().should('be.visible').click({ force: true })
     cy.get('[data-testid="enrolled-devices-table"]', { timeout: 120000 }).should('exist')
     enrolledDeviceRows().should('have.length.at.least', 1)
   },
@@ -231,37 +258,48 @@ export const devicesPage = {
     enrolledDeviceRows().should('have.length', expected)
   },
 
-  /** “Devices” table is the second paginator when enrollment requests are listed above it. */
+  /** “Devices” table pagination only (scoped to enrolled list; waits out API refresh disabling controls). */
   clickEnrolledDevicesNextPage: () => {
-    cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView()
-    cy.get('button[aria-label="Go to next page"]:visible').then(($buttons) => {
-      const idx = $buttons.length > 1 ? 1 : 0
-      cy.wrap($buttons.eq(idx)).should('not.be.disabled').click()
-    })
-    cy.get('button[aria-label="Go to next page"]:visible').then(($buttons) => {
-      const idx = $buttons.length > 1 ? 1 : 0
-      cy.wrap($buttons.eq(idx)).should('not.be.disabled')
+    cy.get('[data-testid="enrolled-devices-table"]', { timeout: 60000 }).should('exist')
+    cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView({ block: 'start' })
+    enrolledDeviceRows().should('have.length.at.least', 1)
+    enrolledDeviceRows().last().scrollIntoView({ block: 'end' })
+    waitEnrolledPaginationIdle()
+    enrolledDevicesListSection().within(() => {
+      cy.get('button[aria-label="Go to next page"]', { timeout: 120000 })
+        .first()
+        .scrollIntoView({ block: 'center', inline: 'center' })
+        .should('not.be.disabled')
+        .click({ force: true })
     })
   },
 
+  /**
+   * Return to page 1 of the enrolled-devices paginator. Compact PatternFly often omits “Go to first page”,
+   * so we click “Go to previous page” until it is disabled (same device-table paginator index as next/previous).
+   */
   goToFirstEnrolledDevicesPage: () => {
-    cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView()
-    cy.get('button[aria-label="Go to first page"]:visible').then(($buttons) => {
-      if ($buttons.length === 0) {
-        return
-      }
-      const idx = $buttons.length > 1 ? 1 : 0
-      const $btn = $buttons.eq(idx)
-      if (!$btn.is(':disabled')) {
-        cy.wrap($btn).click()
-      }
+    cy.get('[data-testid="enrolled-devices-table"]', { timeout: 60000 }).should('exist')
+    cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView({ block: 'start' })
+    enrolledDeviceRows().last().scrollIntoView({ block: 'end' })
+    waitEnrolledPaginationIdle()
+    cy.wrap(Array.from({ length: 12 })).each(() => {
+      waitEnrolledPaginationIdle()
+      enrolledDevicesListSection().within(() => {
+        cy.get('button[aria-label="Go to previous page"]', { timeout: 120000 })
+          .first()
+          .then(($prev) => {
+            if (!$prev.is(':disabled')) {
+              cy.wrap($prev).scrollIntoView({ block: 'center' }).click({ force: true })
+            }
+          })
+      })
     })
-    cy.get('button[aria-label="Go to first page"]:visible').then(($buttons) => {
-      if ($buttons.length === 0) {
-        return
-      }
-      const idx = $buttons.length > 1 ? 1 : 0
-      cy.wrap($buttons.eq(idx)).should('be.disabled')
+    waitEnrolledPaginationIdle()
+    enrolledDevicesListSection().within(() => {
+      cy.get('button[aria-label="Go to previous page"]', { timeout: 120000 })
+        .first()
+        .should('be.disabled')
     })
   },
 

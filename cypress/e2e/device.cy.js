@@ -73,4 +73,62 @@ describe('Device Management', () => {
       devicesPage.decommissionDevice()
     })
   })
+
+  describe('Run device simulator to demo 50 devices', () => {
+    before(() => {
+      cy.task('scaleFleetSimulatorStart')
+      cy.task(
+        'scaleFleetSimulatorWaitForDevices',
+        {
+          expected: 50,
+          labelSelector: 'fleet=scale-fleet-00',
+          timeoutMs: 660000,
+          pollMs: 5000,
+        },
+        { timeout: 660000 },
+      )
+    })
+
+    after(() => {
+      cy.task('scaleFleetSimulatorStop')
+    })
+
+    it('should list 15 enrolled devices on pages 1–3 and 5 on page 4', () => {
+      devicesPage.filterByFleetScaleLabel()
+      //devicesPage.goToFirstEnrolledDevicesPage()
+
+      cy.log('Page 1')
+      devicesPage.expectEnrolledDeviceRowsCount(15)
+      devicesPage.clickEnrolledDevicesNextPage()
+      cy.log('Page 2')
+      devicesPage.expectEnrolledDeviceRowsCount(15)
+      devicesPage.clickEnrolledDevicesNextPage()
+      cy.log('Page 3')
+      devicesPage.expectEnrolledDeviceRowsCount(15)
+      devicesPage.clickEnrolledDevicesNextPage()
+      cy.log('Page 4')
+      devicesPage.expectEnrolledDeviceRowsCount(5)
+    })
+
+    it('after decommissioning one device from page 3, page 3 still has 15 rows and page 4 has 4', () => {
+      devicesPage.filterByFleetScaleLabel()
+      devicesPage.goToEnrolledDevicesPageFromFirst(3)
+
+      devicesPage.expectEnrolledDeviceRowsCount(15)
+
+      devicesPage.decommissionDeviceAtEnrolledRow(0)
+
+      cy.get('[data-testid="show-decommissioned-devices-switch"]').closest('label').click()
+      cy.get('[data-testid="enrolled-devices-table"]', { timeout: 120000 }).should('exist')
+
+      devicesPage.filterByFleetScaleLabel()
+      devicesPage.goToEnrolledDevicesPageFromFirst(3)
+
+      devicesPage.expectEnrolledDeviceRowsCount(15)
+
+      devicesPage.clickEnrolledDevicesNextPage()
+
+      devicesPage.expectEnrolledDeviceRowsCount(4)
+    })
+  })
 })

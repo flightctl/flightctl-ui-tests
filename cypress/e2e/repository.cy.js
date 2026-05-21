@@ -1,5 +1,6 @@
 import { repositoriesPage } from '../views/repositoriesPage'
 
+// Skipped temporarily to shorten CI runs — remove .skip to re-enable.
 describe('Repository Management', () => {
   before(() => {
     cy.ensureLoggedIn()

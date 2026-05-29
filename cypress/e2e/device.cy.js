@@ -92,6 +92,7 @@ describe('Device Management', () => {
 
     after(() => {
       cy.task('scaleFleetSimulatorStop')
+      cy.task('scaleFleetCleanup', {})
     })
 
     it('should list 15 enrolled devices on pages 1–3 and 5 on page 4', () => {

@@ -165,6 +165,27 @@ function registerScaleFleetSimulatorTasks(on) {
       return { existed: false, created: true }
     },
 
+    /**
+     * Removes the scale-fleet and all devices bearing its label so subsequent specs start clean.
+     * Failures are swallowed — cleanup is best-effort.
+     */
+    scaleFleetCleanup({ fleetName = 'scale-fleet-00', labelSelector = 'fleet=scale-fleet-00' } = {}) {
+      const bin = getFlightctlBin()
+      // delete the fleet
+      try { execFileSync(bin, ['delete', 'fleet', fleetName], { encoding: 'utf8' }) } catch (_) {}
+      // delete all matching devices via enrollment requests
+      try {
+        const out = execFileSync(bin, ['get', 'enrollmentrequests', '-o', 'json'], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+        const names = (JSON.parse(out).items || []).map((i) => i.metadata && i.metadata.name).filter(Boolean)
+        const CHUNK = 50
+        for (let i = 0; i < names.length; i += CHUNK) {
+          const chunk = names.slice(i, i + CHUNK)
+          try { execFileSync(bin, ['delete', 'devices', ...chunk], { encoding: 'utf8' }) } catch (_) {}
+        }
+      } catch (_) {}
+      return null
+    },
+
     async scaleFleetSimulatorWaitForDevices({
       expected = 50,
       labelSelector = 'fleet=scale-fleet-00',

@@ -339,21 +339,17 @@ export const devicesPage = {
   },
 
   /**
-   * Open device details from the enrolled table by Name or Alias column text (stays on Devices).
+   * Open scale-demo device details from the enrolled list (Devices page only).
+   * Resets pagination and filters by scale fleet label so device-00001 is on page 1 after prior tests.
    */
   openDeviceDetailsFromList: (deviceRef = SCALE_DEMO_DEVICE_NAME) => {
     common.navigateTo('Devices')
     devicesPage.ensureEnrolledDevicesView()
-    cy.get('[data-testid="enrolled-devices-table"]', { timeout: 120000 }).then(($table) => {
-      const nameMatch = Cypress.$.makeArray($table.find('[data-testid^="device-internal-name-link-"]')).some(
-        (el) => (el.textContent || '').includes(deviceRef),
-      )
-      if (nameMatch) {
-        cy.contains(`[data-testid^="device-internal-name-link-"]`, deviceRef).click()
-      } else {
-        cy.contains(`[data-testid^="device-name-link-"]`, deviceRef).click()
-      }
-    })
+    devicesPage.filterByFleetScaleLabel()
+    devicesPage.goToFirstEnrolledDevicesPage()
+    cy.get(`[data-testid="device-name-link-${deviceRef}"]`, { timeout: 120000 })
+      .scrollIntoView()
+      .click({ force: true })
     cy.get('[data-testid="device-details-title"]', { timeout: 120000 }).should('be.visible')
     cy.get('[data-testid="device-details-tab-details"]').should('be.visible')
   },

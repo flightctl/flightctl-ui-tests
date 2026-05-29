@@ -86,6 +86,16 @@ function registerScaleFleetSimulatorTasks(on) {
       if (simulatorProcess && !simulatorProcess.killed) {
         return { alreadyRunning: true, pid: simulatorProcess.pid }
       }
+      // Remove stale device data so the simulator re-submits enrollment requests
+      // after a backend cleanup (deleted devices leave orphaned dirs that fool the simulator).
+      const dataDir = path.join(os.homedir(), '.flightctl', 'data')
+      if (fs.existsSync(dataDir)) {
+        for (const entry of fs.readdirSync(dataDir)) {
+          if (/^device-/.test(entry)) {
+            try { fs.rmSync(path.join(dataDir, entry), { recursive: true, force: true }) } catch (_) {}
+          }
+        }
+      }
       const bin = getSimulatorBin()
       const args = [
         '--count=50',
@@ -134,7 +144,7 @@ function registerScaleFleetSimulatorTasks(on) {
         // Fleet does not exist — create it via apply
       }
       const yaml = [
-        'apiVersion: v1alpha1',
+        'apiVersion: v1beta1',
         'kind: Fleet',
         'metadata:',
         `  name: ${fleetName}`,
@@ -142,6 +152,8 @@ function registerScaleFleetSimulatorTasks(on) {
         '  selector:',
         '    matchLabels:',
         `      ${selectorKey}: ${selectorValue}`,
+        '  template:',
+        '    spec: {}',
       ].join('\n') + '\n'
       const tmpPath = path.join(os.tmpdir(), `fleet-${fleetName}.yaml`)
       fs.writeFileSync(tmpPath, yaml)

@@ -392,9 +392,22 @@ export const devicesPage = {
   /**
    * Remove the fleet’s device-selector label (see FLEET_DEVICE_SELECTOR_LABELS), verify disconnect,
    * re-add the same label, verify the device is on the same fleet again.
+   * Opens the first enrolled device on page 1 of the scale-fleet filtered list rather than a
+   * hardcoded alias — avoids failures when the target device was decommissioned by a prior test.
    */
-  runFleetLabelDetachReattachTest: (deviceRef = SCALE_DEMO_DEVICE_NAME) => {
-    devicesPage.openDeviceDetailsFromList(deviceRef)
+  runFleetLabelDetachReattachTest: () => {
+    common.navigateTo('Devices')
+    devicesPage.ensureEnrolledDevicesView()
+    devicesPage.filterByFleetScaleLabel()
+    devicesPage.goToFirstEnrolledDevicesPage()
+    cy.get('[data-testid="enrolled-devices-table"] [data-testid^="device-name-link-"]', {
+      timeout: 30000,
+    })
+      .first()
+      .scrollIntoView()
+      .click({ force: true })
+    cy.get('[data-testid="device-details-title"]', { timeout: 120000 }).should('be.visible')
+    cy.get('[data-testid="device-details-tab-details"]').should('be.visible')
     cy.contains('.fctl-device-details-tab__label', 'Fleet name')
       .closest('.pf-v6-l-stack')
       .find('.fctl-resource-link__text')

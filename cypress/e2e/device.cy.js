@@ -131,8 +131,8 @@ describe('Device Management', () => {
       devicesPage.expectEnrolledDeviceRowsCount(4)
     })
 
-    it('removing fleet device-selector label disconnects device-00001 and re-adding re-attaches', () => {
-      devicesPage.runFleetLabelDetachReattachTest('device-00001')
+    it('removing fleet device-selector label disconnects a scale-fleet device and re-adding re-attaches', () => {
+      devicesPage.runFleetLabelDetachReattachTest()
     })
   })
 })

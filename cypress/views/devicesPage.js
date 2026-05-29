@@ -65,6 +65,43 @@ const waitEnrolledPaginationIdle = () => {
     }, { timeout: 120000 })
 }
 
+const enrolledDeviceNameLinkSelector = (deviceRef) =>
+  `[data-testid="device-name-link-${deviceRef}"], [data-testid="device-internal-name-link-${deviceRef}"]`
+
+/**
+ * Open device details from the enrolled table; paginate when sort order leaves the device off page 1.
+ */
+const clickEnrolledDeviceNameLinkAcrossPages = (deviceRef, pagesLeft = 8) => {
+  const linkSel = enrolledDeviceNameLinkSelector(deviceRef)
+  cy.get('[data-testid="enrolled-devices-table"]', { timeout: 120000 }).should('exist')
+  cy.get('[data-testid="enrolled-devices-table"]').then(($table) => {
+    const $link = $table.find(linkSel).filter(':visible').first()
+    if ($link.length) {
+      cy.wrap($link).scrollIntoView().click({ force: true })
+      return
+    }
+    if (pagesLeft <= 0) {
+      throw new Error(
+        `Device "${deviceRef}" not found in enrolled devices table (checked all pages).`,
+      )
+    }
+    enrolledDevicesListSection().within(() => {
+      cy.get('button[aria-label="Go to next page"]')
+        .first()
+        .then(($next) => {
+          if ($next.is(':disabled')) {
+            throw new Error(
+              `Device "${deviceRef}" not found in enrolled devices table (no more pages).`,
+            )
+          }
+          cy.wrap($next).scrollIntoView().click({ force: true })
+        })
+    })
+    waitEnrolledPaginationIdle()
+    clickEnrolledDeviceNameLinkAcrossPages(deviceRef, pagesLeft - 1)
+  })
+}
+
 /**
  * DevicesPage object for device management operations.
  * Prefer data-testid selectors from flightctl-ui for stability.
@@ -340,16 +377,14 @@ export const devicesPage = {
 
   /**
    * Open scale-demo device details from the enrolled list (Devices page only).
-   * Resets pagination and filters by scale fleet label so device-00001 is on page 1 after prior tests.
+   * Filters by scale fleet label, resets to page 1, then paginates until the Name link is found.
    */
   openDeviceDetailsFromList: (deviceRef = SCALE_DEMO_DEVICE_NAME) => {
     common.navigateTo('Devices')
     devicesPage.ensureEnrolledDevicesView()
     devicesPage.filterByFleetScaleLabel()
     devicesPage.goToFirstEnrolledDevicesPage()
-    cy.get(`[data-testid="device-name-link-${deviceRef}"]`, { timeout: 120000 })
-      .scrollIntoView()
-      .click({ force: true })
+    clickEnrolledDeviceNameLinkAcrossPages(deviceRef)
     cy.get('[data-testid="device-details-title"]', { timeout: 120000 }).should('be.visible')
     cy.get('[data-testid="device-details-tab-details"]').should('be.visible')
   },

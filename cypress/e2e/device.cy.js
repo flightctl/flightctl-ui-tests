@@ -76,6 +76,7 @@ describe('Device Management', () => {
 
   describe('Run device simulator to demo 50 devices', () => {
     before(() => {
+      cy.task('scaleFleetEnsureExists', {})
       cy.task('scaleFleetSimulatorStart')
       cy.task(
         'scaleFleetSimulatorWaitForDevices',

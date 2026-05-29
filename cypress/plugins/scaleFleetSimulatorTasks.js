@@ -1,4 +1,5 @@
 const { spawn, execFileSync } = require('child_process')
+const fs = require('fs')
 const path = require('path')
 const os = require('os')
 
@@ -120,6 +121,38 @@ function registerScaleFleetSimulatorTasks(on) {
      * Polls `flightctl get devices` until at least `expected` devices match `labelSelector`, or `timeoutMs` elapses.
      * Transient CLI or parse failures are retried on each interval instead of failing the whole wait immediately.
      */
+    /**
+     * Creates the scale-fleet if it does not already exist, so enrolled devices get fleet ownership.
+     * Safe to call repeatedly — no-ops when the fleet is already present.
+     */
+    scaleFleetEnsureExists({ fleetName = 'scale-fleet-00', selectorKey = 'fleet', selectorValue = 'scale-fleet-00' } = {}) {
+      const bin = getFlightctlBin()
+      try {
+        execFileSync(bin, ['get', 'fleet', fleetName, '-o', 'name'], { encoding: 'utf8' })
+        return { existed: true }
+      } catch (_) {
+        // Fleet does not exist — create it via apply
+      }
+      const yaml = [
+        'apiVersion: v1alpha1',
+        'kind: Fleet',
+        'metadata:',
+        `  name: ${fleetName}`,
+        'spec:',
+        '  selector:',
+        '    matchLabels:',
+        `      ${selectorKey}: ${selectorValue}`,
+      ].join('\n') + '\n'
+      const tmpPath = path.join(os.tmpdir(), `fleet-${fleetName}.yaml`)
+      fs.writeFileSync(tmpPath, yaml)
+      try {
+        execFileSync(bin, ['apply', '-f', tmpPath], { encoding: 'utf8' })
+      } finally {
+        try { fs.unlinkSync(tmpPath) } catch (_) {}
+      }
+      return { existed: false, created: true }
+    },
+
     async scaleFleetSimulatorWaitForDevices({
       expected = 50,
       labelSelector = 'fleet=scale-fleet-00',

@@ -1,4 +1,5 @@
 const { spawn, execFileSync } = require('child_process')
+const fs = require('fs')
 const path = require('path')
 const os = require('os')
 
@@ -85,6 +86,16 @@ function registerScaleFleetSimulatorTasks(on) {
       if (simulatorProcess && !simulatorProcess.killed) {
         return { alreadyRunning: true, pid: simulatorProcess.pid }
       }
+      // Remove stale device data so the simulator re-submits enrollment requests
+      // after a backend cleanup (deleted devices leave orphaned dirs that fool the simulator).
+      const dataDir = path.join(os.homedir(), '.flightctl', 'data')
+      if (fs.existsSync(dataDir)) {
+        for (const entry of fs.readdirSync(dataDir)) {
+          if (/^device-/.test(entry)) {
+            try { fs.rmSync(path.join(dataDir, entry), { recursive: true, force: true }) } catch (_) {}
+          }
+        }
+      }
       const bin = getSimulatorBin()
       const args = [
         '--count=50',
@@ -120,6 +131,61 @@ function registerScaleFleetSimulatorTasks(on) {
      * Polls `flightctl get devices` until at least `expected` devices match `labelSelector`, or `timeoutMs` elapses.
      * Transient CLI or parse failures are retried on each interval instead of failing the whole wait immediately.
      */
+    /**
+     * Creates the scale-fleet if it does not already exist, so enrolled devices get fleet ownership.
+     * Safe to call repeatedly — no-ops when the fleet is already present.
+     */
+    scaleFleetEnsureExists({ fleetName = 'scale-fleet-00', selectorKey = 'fleet', selectorValue = 'scale-fleet-00' } = {}) {
+      const bin = getFlightctlBin()
+      try {
+        execFileSync(bin, ['get', 'fleet', fleetName, '-o', 'name'], { encoding: 'utf8' })
+        return { existed: true }
+      } catch (_) {
+        // Fleet does not exist — create it via apply
+      }
+      const yaml = [
+        'apiVersion: v1beta1',
+        'kind: Fleet',
+        'metadata:',
+        `  name: ${fleetName}`,
+        'spec:',
+        '  selector:',
+        '    matchLabels:',
+        `      ${selectorKey}: ${selectorValue}`,
+        '  template:',
+        '    spec: {}',
+      ].join('\n') + '\n'
+      const tmpPath = path.join(os.tmpdir(), `fleet-${fleetName}.yaml`)
+      fs.writeFileSync(tmpPath, yaml)
+      try {
+        execFileSync(bin, ['apply', '-f', tmpPath], { encoding: 'utf8' })
+      } finally {
+        try { fs.unlinkSync(tmpPath) } catch (_) {}
+      }
+      return { existed: false, created: true }
+    },
+
+    /**
+     * Removes the scale-fleet and all devices bearing its label so subsequent specs start clean.
+     * Failures are swallowed — cleanup is best-effort.
+     */
+    scaleFleetCleanup({ fleetName = 'scale-fleet-00', labelSelector = 'fleet=scale-fleet-00' } = {}) {
+      const bin = getFlightctlBin()
+      // delete the fleet
+      try { execFileSync(bin, ['delete', 'fleet', fleetName], { encoding: 'utf8' }) } catch (_) {}
+      // delete all matching devices via enrollment requests
+      try {
+        const out = execFileSync(bin, ['get', 'enrollmentrequests', '-o', 'json'], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+        const names = (JSON.parse(out).items || []).map((i) => i.metadata && i.metadata.name).filter(Boolean)
+        const CHUNK = 50
+        for (let i = 0; i < names.length; i += CHUNK) {
+          const chunk = names.slice(i, i + CHUNK)
+          try { execFileSync(bin, ['delete', 'devices', ...chunk], { encoding: 'utf8' }) } catch (_) {}
+        }
+      } catch (_) {}
+      return null
+    },
+
     async scaleFleetSimulatorWaitForDevices({
       expected = 50,
       labelSelector = 'fleet=scale-fleet-00',

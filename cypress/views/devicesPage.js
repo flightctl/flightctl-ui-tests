@@ -23,6 +23,23 @@ const DEVICE_ALIAS_VALIDATION_BTN = '[data-testid="rich-validation-field-deviceA
 /** Devices scale demo: label applied by devicesimulator (`--label fleet=scale-fleet-00`) */
 export const SCALE_FLEET_LABEL_TEXT = 'fleet=scale-fleet-00'
 
+/** Fleet resource name matched by the scale-demo label selector */
+export const SCALE_FLEET_NAME = 'scale-fleet-00'
+
+/** First simulator device when `--initial-device-index=0` (second device: device-00001) */
+export const SCALE_DEMO_DEVICE_NAME = 'device-00001'
+
+/**
+ * Fleet device-selector labels (Fleet details → Device selector). Removing this label on a device
+ * disconnects it from that fleet; re-adding re-attaches.
+ */
+export const SIMULATOR_DISK_MONITORING_SELECTOR_LABEL = 'created_by=device-simulator'
+
+const FLEET_DEVICE_SELECTOR_LABELS = {
+  [SCALE_FLEET_NAME]: SCALE_FLEET_LABEL_TEXT,
+  'simulator-disk-monitoring': SIMULATOR_DISK_MONITORING_SELECTOR_LABEL,
+}
+
 /** Real `<input>` inside PatternFly TextInputGroup (`#typeahead-select-input` is the wrapper div). */
 const FLEET_LABEL_TYPEAHEAD_INPUT = '#typeahead-select-input input'
 
@@ -46,6 +63,43 @@ const waitEnrolledPaginationIdle = () => {
     .should(($p) => {
       expect($p.find('.pf-v6-c-spinner').length).to.eq(0)
     }, { timeout: 120000 })
+}
+
+const enrolledDeviceNameLinkSelector = (deviceRef) =>
+  `[data-testid="device-name-link-${deviceRef}"], [data-testid="device-internal-name-link-${deviceRef}"]`
+
+/**
+ * Open device details from the enrolled table; paginate when sort order leaves the device off page 1.
+ */
+const clickEnrolledDeviceNameLinkAcrossPages = (deviceRef, pagesLeft = 8) => {
+  const linkSel = enrolledDeviceNameLinkSelector(deviceRef)
+  cy.get('[data-testid="enrolled-devices-table"]', { timeout: 120000 }).should('exist')
+  cy.get('[data-testid="enrolled-devices-table"]').then(($table) => {
+    const $link = $table.find(linkSel).filter(':visible').first()
+    if ($link.length) {
+      cy.wrap($link).scrollIntoView().click({ force: true })
+      return
+    }
+    if (pagesLeft <= 0) {
+      throw new Error(
+        `Device "${deviceRef}" not found in enrolled devices table (checked all pages).`,
+      )
+    }
+    enrolledDevicesListSection().within(() => {
+      cy.get('button[aria-label="Go to next page"]')
+        .first()
+        .then(($next) => {
+          if ($next.is(':disabled')) {
+            throw new Error(
+              `Device "${deviceRef}" not found in enrolled devices table (no more pages).`,
+            )
+          }
+          cy.wrap($next).scrollIntoView().click({ force: true })
+        })
+    })
+    waitEnrolledPaginationIdle()
+    clickEnrolledDeviceNameLinkAcrossPages(deviceRef, pagesLeft - 1)
+  })
 }
 
 /**
@@ -319,5 +373,98 @@ export const devicesPage = {
       cy.contains('button.pf-m-danger', 'Decommission device').click()
     })
     cy.get('[data-testid="decommissioned-devices-table"]', { timeout: 120000 }).should('exist')
+  },
+
+  /**
+   * Open scale-demo device details from the enrolled list (Devices page only).
+   * Filters by scale fleet label, resets to page 1, then paginates until the Name link is found.
+   */
+  openDeviceDetailsFromList: (deviceRef = SCALE_DEMO_DEVICE_NAME) => {
+    common.navigateTo('Devices')
+    devicesPage.ensureEnrolledDevicesView()
+    devicesPage.filterByFleetScaleLabel()
+    devicesPage.goToFirstEnrolledDevicesPage()
+    clickEnrolledDeviceNameLinkAcrossPages(deviceRef)
+    cy.get('[data-testid="device-details-title"]', { timeout: 120000 }).should('be.visible')
+    cy.get('[data-testid="device-details-tab-details"]').should('be.visible')
+  },
+
+  /**
+   * Remove the fleet’s device-selector label (see FLEET_DEVICE_SELECTOR_LABELS), verify disconnect,
+   * re-add the same label, verify the device is on the same fleet again.
+   * Opens the first enrolled device on page 1 of the scale-fleet filtered list rather than a
+   * hardcoded alias — avoids failures when the target device was decommissioned by a prior test.
+   */
+  runFleetLabelDetachReattachTest: () => {
+    common.navigateTo('Devices')
+    devicesPage.ensureEnrolledDevicesView()
+    devicesPage.filterByFleetScaleLabel()
+    devicesPage.goToFirstEnrolledDevicesPage()
+    cy.get('[data-testid="enrolled-devices-table"] [data-testid^="device-name-link-"]', {
+      timeout: 30000,
+    })
+      .first()
+      .scrollIntoView()
+      .click({ force: true })
+    cy.get('[data-testid="device-details-title"]', { timeout: 120000 }).should('be.visible')
+    cy.get('[data-testid="device-details-tab-details"]').should('be.visible')
+    cy.contains('.fctl-device-details-tab__label', 'Fleet name', { timeout: 60000 })
+      .closest('.pf-v6-l-stack')
+      .find('.fctl-resource-link__text', { timeout: 60000 })
+      .invoke('text')
+      .as('expectedFleetName')
+    cy.contains('.fctl-device-details-tab__label', 'Fleet name')
+      .closest('.pf-v6-l-stack')
+      .should('not.contain', 'None')
+
+    cy.get('@expectedFleetName').then((fleetName) => {
+      const fleet = String(fleetName).trim()
+      const bindingLabel =
+        FLEET_DEVICE_SELECTOR_LABELS[fleet] || `fleet=${fleet}`
+      cy.get('body').then(($body) => {
+        const hasBindingLabel = [...$body.find('.pf-v6-c-label')].some((el) => {
+          const text = (el.textContent || '').trim().replace(/:/g, '=')
+          return text.includes(bindingLabel)
+        })
+        if (!hasBindingLabel) {
+          throw new Error(
+            `Device selector label "${bindingLabel}" not found on device (fleet: ${fleet}). ` +
+              'Check Fleet details → Device selector matches a label on this device.',
+          )
+        }
+        cy.wrap({ bindingLabel, fleet }).as('fleetLabelTest')
+      })
+    })
+
+    cy.get('@fleetLabelTest').then(({ bindingLabel, fleet }) => {
+      cy.contains('.pf-v6-c-label', bindingLabel).should('exist')
+      devicesPage.removeFleetLabelOnDeviceDetails(bindingLabel)
+      devicesPage.expectDeviceDetailsFleetDisconnected()
+      devicesPage.addFleetLabelOnDeviceDetails(bindingLabel)
+      devicesPage.expectDeviceDetailsFleetConnected(fleet)
+    })
+  },
+
+  expectDeviceDetailsFleetConnected: (fleetName = SCALE_FLEET_NAME) => {
+    cy.contains('.fctl-device-details-tab__label', 'Fleet name', { timeout: 120000 })
+      .closest('.pf-v6-l-stack')
+      .should('contain', fleetName)
+  },
+
+  expectDeviceDetailsFleetDisconnected: () => {
+    cy.contains('.fctl-device-details-tab__label', 'Fleet name', { timeout: 120000 })
+      .closest('.pf-v6-l-stack')
+      .should('contain', 'None')
+  },
+
+  removeFleetLabelOnDeviceDetails: (labelText = SCALE_FLEET_LABEL_TEXT) => {
+    cy.contains('.pf-v6-c-label', labelText)
+      .find(`button[aria-label="Close ${labelText}"]`)
+      .click()
+  },
+
+  addFleetLabelOnDeviceDetails: (labelText = SCALE_FLEET_LABEL_TEXT) => {
+    cy.contains('button', 'Add label').click()
+    cy.get('input[aria-label="New label"]').clear().type(`${labelText}{enter}`)
   },
 }

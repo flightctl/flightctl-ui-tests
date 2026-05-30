@@ -76,6 +76,7 @@ describe('Device Management', () => {
 
   describe('Run device simulator to demo 50 devices', () => {
     before(() => {
+      cy.task('scaleFleetEnsureExists', {})
       cy.task('scaleFleetSimulatorStart')
       cy.task(
         'scaleFleetSimulatorWaitForDevices',
@@ -91,6 +92,7 @@ describe('Device Management', () => {
 
     after(() => {
       cy.task('scaleFleetSimulatorStop')
+      cy.task('scaleFleetCleanup', {})
     })
 
     it('should list 15 enrolled devices on pages 1–3 and 5 on page 4', () => {
@@ -129,6 +131,10 @@ describe('Device Management', () => {
       devicesPage.clickEnrolledDevicesNextPage()
 
       devicesPage.expectEnrolledDeviceRowsCount(4)
+    })
+
+    it('removing fleet device-selector label disconnects a scale-fleet device and re-adding re-attaches', () => {
+      devicesPage.runFleetLabelDetachReattachTest()
     })
   })
 })

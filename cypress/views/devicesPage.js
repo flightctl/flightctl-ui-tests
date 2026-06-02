@@ -301,9 +301,9 @@ export const devicesPage = {
       .filter(':visible')
       .first()
       .click({ force: true })
-    // Close the typeahead panel so it does not stay open and block pagination / table clicks.
-    // Two ListPages on this screen (enrollment + enrolled) both use data-testid="list-page-title" — click the enrolled one (last in DOM).
-    cy.get('[data-testid="list-page-title"]').last().should('be.visible').click({ force: true })
+    // Close the typeahead panel with Escape — more reliable than clicking the page title which can
+    // be clipped by an overflow:hidden ancestor in PF6 layouts.
+    cy.get(FLEET_LABEL_TYPEAHEAD_INPUT).type('{esc}', { force: true })
     cy.get('[data-testid="enrolled-devices-table"]', { timeout: 120000 }).should('exist')
     enrolledDeviceRows().should('have.length.at.least', 1)
   },

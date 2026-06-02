@@ -85,8 +85,9 @@ describe('Device Management', () => {
           labelSelector: 'fleet=scale-fleet-00',
           timeoutMs: 660000,
           pollMs: 5000,
+          settleMs: 25000,
         },
-        { timeout: 660000 },
+        { timeout: 690000 },
       )
     })
 

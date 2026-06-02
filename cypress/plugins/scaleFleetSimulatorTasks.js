@@ -191,6 +191,7 @@ function registerScaleFleetSimulatorTasks(on) {
       labelSelector = 'fleet=scale-fleet-00',
       timeoutMs = 600000,
       pollMs = 5000,
+      settleMs = 0,
     }) {
       const flightctlBin = getFlightctlBin()
       const deadline = Date.now() + timeoutMs
@@ -201,6 +202,12 @@ function registerScaleFleetSimulatorTasks(on) {
           const c = countDevices(flightctlBin, labelSelector)
           last = c
           if (c >= expected) {
+            // The CLI confirmed enough devices, but the UI enrollment pipeline may still
+            // be processing the last batch. Wait an extra settle period so all devices
+            // are fully visible in the browser before any test navigates to page 4.
+            if (settleMs > 0) {
+              await sleep(settleMs)
+            }
             return { count: c }
           }
         } catch (e) {

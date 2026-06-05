@@ -43,6 +43,12 @@ module.exports = defineConfig({
     yaml: process.env.YAML || '/demos/basic-nginx-demo/deployment/fleet.yaml',
     newyaml: process.env.NEWYAML || '/demos/quadlet-wordpress-demo/deployment/fleet.yaml',
     repositoryname: process.env.REPOSITORYNAME || 'test-repository',
+    flightctlRepoWithWriteName:     process.env.FLIGHTCTL_REPO_WITH_WRITE_NAME     || 'flightctl-repo',
+    flightctlRepoWithWriteHostName: process.env.FLIGHTCTL_REPO_WITH_WRITE_HOSTNAME || '',
+    flightctlRepoWithWriteUrl:      process.env.FLIGHTCTL_REPO_WITH_WRITE_URL      || '',
+    flightctlRepoWithWritePath:     process.env.FLIGHTCTL_REPO_WITH_WRITE_PATH     || '',
+    flightctlRepoWithWriteUsername: process.env.FLIGHTCTL_REPO_WITH_WRITE_USERNAME || '',
+    flightctlRepoWithWritePassword: process.env.FLIGHTCTL_REPO_WITH_WRITE_PASSWORD || '',
     resourcename: process.env.RESOURCENAME || 'base/fedora-bootc/deploy/fleet.yaml',
     useAcmNavigation: process.env.CYPRESS_USE_ACM_NAVIGATION !== 'false',
     // auth-provider-login.cy.js: full authorize URL from `flightctl login --web --no-browser` output

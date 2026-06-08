@@ -140,6 +140,7 @@ export const devicesPage = {
     cy.get(`[data-testid="enrollment-request-approve-button-${ROW_0}"]`).should('be.visible')
     cy.get(`[data-testid="enrollment-request-approve-button-${ROW_0}"]`).click()
     cy.get('[data-testid="rich-validation-field-deviceAlias"]').should('be.visible')
+    cy.get('[data-testid="rich-validation-field-deviceAlias"]').clear()
     cy.get('[data-testid="rich-validation-field-deviceAlias"]').type(deviceName)
     cy.get('[data-testid="rich-validation-field-deviceAlias"]').should('have.value', deviceName)
     cy.get('[data-testid="approve-device-form-submit"]').should('be.visible')

@@ -40,8 +40,11 @@ const FLEET_DEVICE_SELECTOR_LABELS = {
   'simulator-disk-monitoring': SIMULATOR_DISK_MONITORING_SELECTOR_LABEL,
 }
 
-/** Real `<input>` inside PatternFly TextInputGroup (`#typeahead-select-input` is the wrapper div). */
-const FLEET_LABEL_TYPEAHEAD_INPUT = '#typeahead-select-input input'
+/**
+ * PF6 TextInputGroupMain puts `id` directly on the `<input>` element (not a wrapper).
+ * `input#typeahead-select-input` is the correct selector for the label/fleet filter input.
+ */
+const FLEET_LABEL_TYPEAHEAD_INPUT = 'input#typeahead-select-input'
 
 const enrolledDeviceRows = () =>
   cy.get('[data-testid="enrolled-devices-table"] tbody tr[data-testid^="enrolled-device-row-"]')
@@ -290,27 +293,60 @@ export const devicesPage = {
   filterByFleetScaleLabel: () => {
     common.navigateTo('Devices')
     devicesPage.ensureEnrolledDevicesView()
-    // Toolbar can sit in overflow:auto regions in ACM/console — avoid visibility flake; interact with force after scroll.
     cy.get('#devices-toolbar', { timeout: 30000 }).scrollIntoView()
-    cy.get(FLEET_LABEL_TYPEAHEAD_INPUT, { timeout: 30000 }).should('exist').scrollIntoView({ block: 'center' })
-    cy.get(FLEET_LABEL_TYPEAHEAD_INPUT).clear({ force: true })
-    cy.get(FLEET_LABEL_TYPEAHEAD_INPUT).type(SCALE_FLEET_LABEL_TEXT, { force: true })
-    // Label options use `hasCheckbox` in the UI → PatternFly uses role="menuitem", not role="option".
+    cy.get('[aria-label="Fleet and label filter toggle"]', { timeout: 30000 })
+      .scrollIntoView({ block: 'center' })
+      .click()
+    cy.get(FLEET_LABEL_TYPEAHEAD_INPUT, { timeout: 10000 })
+      .should('be.visible')
+      .clear()
+      .type(SCALE_FLEET_LABEL_TEXT)
     cy.wait(1200)
-    // Match can resolve to more than one node (e.g. hidden + visible popper, or label + row). Click one.
     cy.contains('[role="menuitem"], [role="option"]', SCALE_FLEET_LABEL_TEXT, { timeout: 120000 })
       .filter(':visible')
       .first()
       .click({ force: true })
-    // Close the typeahead panel with Escape — more reliable than clicking the page title which can
-    // be clipped by an overflow:hidden ancestor in PF6 layouts.
-    cy.get(FLEET_LABEL_TYPEAHEAD_INPUT).type('{esc}', { force: true })
+    cy.get(FLEET_LABEL_TYPEAHEAD_INPUT).type('{esc}')
     cy.get('[data-testid="enrolled-devices-table"]', { timeout: 120000 }).should('exist')
     enrolledDeviceRows().should('have.length.at.least', 1)
   },
 
+  expectEnrolledDevicesTotalPages: (expectedPages) => {
+    enrolledDevicesListSection()
+      .find('.pf-v6-c-pagination__total-items', { timeout: 30000 })
+      .should(($el) => {
+        const text = $el.text().trim()
+        expect(text).to.match(new RegExp(`of ${expectedPages}$`))
+      })
+  },
+
   expectEnrolledDeviceRowsCount: (expected) => {
     enrolledDeviceRows().should('have.length', expected)
+  },
+
+  /**
+   * Verify the current page number in the enrolled-devices paginator.
+   * PF6 compact pagination renders "X of Y" text in `.pf-v6-c-pagination__total-items`
+   * instead of the `input[type="number"]` that full PF6 pagination uses.
+   * This helper handles both variants.
+   */
+  expectEnrolledDevicesCurrentPage: (pageNum) => {
+    enrolledDevicesListSection()
+      .find('.pf-v6-c-pagination', { timeout: 30000 })
+      .first()
+      .should(($pag) => {
+        const $input = $pag.find('.pf-v6-c-pagination__nav-page-select input[type="number"]')
+        if ($input.length) {
+          expect($input.val()).to.eq(`${pageNum}`)
+          return
+        }
+        const $total = $pag.find('.pf-v6-c-pagination__total-items')
+        expect($total.length, 'Expected pagination total-items element to exist').to.be.greaterThan(0)
+        const text = $total.text().trim()
+        const m = text.match(/^(\d+)\s+of\s+/)
+        expect(m, `Pagination text "${text}" does not match "X of Y" pattern`).to.not.be.null
+        expect(parseInt(m[1], 10), `Expected page ${pageNum} but pagination shows "${text}"`).to.eq(pageNum)
+      })
   },
 
   /** “Devices” table pagination only (scoped to enrolled list; waits out API refresh disabling controls). */
@@ -327,6 +363,8 @@ export const devicesPage = {
         .should('not.be.disabled')
         .click({ force: true })
     })
+    waitEnrolledPaginationIdle()
+    enrolledDeviceRows().should('have.length.at.least', 1)
   },
 
   /**
@@ -336,23 +374,34 @@ export const devicesPage = {
   goToFirstEnrolledDevicesPage: () => {
     cy.get('[data-testid="enrolled-devices-table"]', { timeout: 60000 }).should('exist')
     cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView({ block: 'start' })
-    enrolledDeviceRows().last().scrollIntoView({ block: 'end' })
+    enrolledDeviceRows().should('have.length.at.least', 1)
     waitEnrolledPaginationIdle()
-    cy.wrap(Array.from({ length: 12 })).each(() => {
-      waitEnrolledPaginationIdle()
-      enrolledDevicesListSection().within(() => {
-        cy.get('button[aria-label="Go to previous page"]', { timeout: 120000 })
-          .first()
-          .then(($prev) => {
-            if (!$prev.is(':disabled')) {
-              cy.wrap($prev).scrollIntoView({ block: 'center' }).click({ force: true })
-            }
-          })
-      })
+    enrolledDevicesListSection().within(() => {
+      cy.get('button[aria-label="Go to previous page"]', { timeout: 30000 })
+        .first()
+        .then(($prev) => {
+          if ($prev.is(':disabled')) {
+            cy.log('Already on page 1 — skipping pagination loop')
+            return
+          }
+          const clickPrev = (remaining) => {
+            if (remaining <= 0) return
+            waitEnrolledPaginationIdle()
+            cy.get('button[aria-label="Go to previous page"]')
+              .first()
+              .then(($btn) => {
+                if ($btn.is(':disabled')) return
+                cy.wrap($btn).scrollIntoView({ block: 'center' }).click({ force: true })
+                clickPrev(remaining - 1)
+              })
+          }
+          cy.wrap($prev).scrollIntoView({ block: 'center' }).click({ force: true })
+          clickPrev(11)
+        })
     })
     waitEnrolledPaginationIdle()
     enrolledDevicesListSection().within(() => {
-      cy.get('button[aria-label="Go to previous page"]', { timeout: 120000 })
+      cy.get('button[aria-label="Go to previous page"]', { timeout: 30000 })
         .first()
         .should('be.disabled')
     })

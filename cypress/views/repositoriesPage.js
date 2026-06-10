@@ -110,7 +110,7 @@ export const repositoriesPage = {
     cy.get('[data-testid="rich-validation-field-name"]').clear().type('valid-repo-name')
     cy.get('[data-testid="textfield-url"]').clear().type(validUrl)
     cy.get('[data-testid="textfield-url"]').should('have.value', validUrl)
-    cy.get('#use-resource-syncs').then(($cb) => {
+    cy.get('[data-testid="repository-form-use-resource-syncs"]').then(($cb) => {
       if (!$cb.is(':checked')) {
         cy.wrap($cb).check({ force: true })
       }
@@ -152,7 +152,7 @@ export const repositoriesPage = {
     cy.get('[data-testid="rich-validation-field-name"]').should('be.visible')
     cy.get('[data-testid="rich-validation-field-name"]').type('test-repository')
     cy.get('[data-testid="rich-validation-field-name"]').should('have.value', 'test-repository')
-    cy.get('#use-resource-syncs').should('be.visible')
+    cy.get('[data-testid="repository-form-use-resource-syncs"]').should('be.visible')
     cy.get('[data-testid="textfield-url"]').type(repo)
     cy.get('[data-testid="textfield-url"]').should('have.value', repo)
     cy.get('.pf-v6-c-form__section').should('be.visible')
@@ -160,7 +160,7 @@ export const repositoriesPage = {
     cy.get('[data-testid="textfield-resourceSyncs[0].targetRevision"]').type(revision)
     cy.get('[data-testid="textfield-resourceSyncs[0].path"]').type(resource)
     cy.get('[data-testid="repository-form-submit"]').click()
-    cy.get('.pf-v6-c-description-list__text > .pf-v6-l-flex > :nth-child(2)', { timeout: 100000 }).should('contain', 'Accessible')
+    cy.get('[data-testid="repository-details-sync-status"]', { timeout: 100000 }).should('contain', 'Accessible')
   },
 
   /**

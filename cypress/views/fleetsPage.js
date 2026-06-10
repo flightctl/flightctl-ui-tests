@@ -20,9 +20,8 @@ export const fleetsPage = {
    */
   openCreateFleetWizard: () => {
     common.navigateTo('Fleets')
-    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').should('exist')
-    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').should('be.visible')
-    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').click()
+    cy.get('[data-testid="toolbar-create-fleet"]', { timeout: 10000 }).first().should('be.visible')
+    cy.get('[data-testid="toolbar-create-fleet"]').first().click()
     cy.get('[data-testid="rich-validation-field-name"]').should('be.visible')
   },
 
@@ -74,9 +73,8 @@ export const fleetsPage = {
   createFleet: (img = Cypress.env('image'), fleetname = Cypress.env('fleetname')) => {
     common.navigateTo('Fleets')
 
-    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').should('exist')
-    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').should('be.visible')
-    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(1) > .pf-v6-c-button').click()
+    cy.get('[data-testid="toolbar-create-fleet"]', { timeout: 10000 }).first().should('be.visible')
+    cy.get('[data-testid="toolbar-create-fleet"]').first().click()
     cy.get('[data-testid="rich-validation-field-name"]').should('be.visible')
     cy.get('[data-testid="rich-validation-field-name"]').type(fleetname)
     cy.get('[data-testid="rich-validation-field-name"]').should('have.value', 'test-fleet')
@@ -96,11 +94,8 @@ export const fleetsPage = {
   editFleet: (fleetname = Cypress.env('fleetname'), img1 = Cypress.env('newimage')) => {
     common.navigateTo('Fleets')
     
-    cy.get('[data-label="Name"]').contains(fleetname)
-    cy.get('.pf-v6-c-table__action > .pf-v6-c-menu-toggle').click()
-    cy.get('td.pf-v6-c-table__td').then($cells => cy.wrap($cells.eq(-1)))
-    cy.get('.pf-v6-c-table__action > .pf-v6-c-menu-toggle').should('be.visible')
-    cy.get('[data-ouia-component-id="OUIA-Generated-DropdownItem-2"] > .pf-v6-c-menu__item > .pf-v6-c-menu__item-main > .pf-v6-c-menu__item-text').click()
+    cy.get(`[data-testid="fleet-row-actions-${fleetname}"] .pf-v6-c-menu-toggle`).should('be.visible').click()
+    cy.contains('.pf-v6-c-menu__item-text', 'Edit fleet configurations').should('be.visible').click()
     cy.get(':nth-child(1) > .pf-v6-c-form__group-label > .pf-v6-c-form__label > .pf-v6-c-form__label-text').should('contain', 'Fleet name')
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="textfield-osImage"]').should('be.visible')
@@ -121,10 +116,10 @@ export const fleetsPage = {
     
     cy.get('[data-label="Name"]').contains(fleetname)
     cy.get('.pf-v6-c-table__tbody > .pf-v6-c-table__tr > .pf-v6-c-table__check > label > input').click()
-    cy.get('button.pf-v6-c-button.pf-m-secondary').contains('Delete fleets').should('be.visible')
-    cy.get('button.pf-v6-c-button.pf-m-secondary').contains('Delete fleets').click()
-    cy.get('.pf-m-danger').should('be.visible')
-    cy.get('.pf-m-danger').click()
+    cy.get('[data-testid="toolbar-delete-fleets"]').should('be.visible')
+    cy.get('[data-testid="toolbar-delete-fleets"]').click()
+    cy.get('[data-testid="modal-delete-fleets-confirm"]').should('be.visible')
+    cy.get('[data-testid="modal-delete-fleets-confirm"]').click()
   },
 
   /**
@@ -133,9 +128,8 @@ export const fleetsPage = {
   importFleet: (repo = Cypress.env('repository'), fleetname = Cypress.env('fleetname'), resource = Cypress.env('resource'), resourcename = Cypress.env('resourcename'), revision = Cypress.env('revision')) => {
     common.navigateTo('Fleets')
     
-    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(2) > .pf-v6-c-button').should('exist')
-    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(2) > .pf-v6-c-button').should('be.visible')
-    cy.get(':nth-child(2) > .pf-v6-l-split > :nth-child(2) > .pf-v6-c-button').click()
+    cy.get('[data-testid="toolbar-import-fleets"]', { timeout: 10000 }).first().should('be.visible')
+    cy.get('[data-testid="toolbar-import-fleets"]').first().click()
     cy.get('[data-testid="rich-validation-field-name"]').type(fleetname)
     cy.get('[data-testid="textfield-url"]').type(repo)
     cy.get('[data-testid="wizard-next-button"]').click()

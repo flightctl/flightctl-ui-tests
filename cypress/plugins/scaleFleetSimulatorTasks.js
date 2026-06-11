@@ -45,8 +45,9 @@ function sleep(ms) {
 /**
  * Runs `flightctl get devices` with a label selector and returns how many devices appear in JSON `items`.
  * Tries several flag combinations (`-l` / `--selector`) so minor CLI differences still parse correctly.
+ * When `requiredStatus` is set (e.g. "Online"), only counts devices whose summary status matches.
  */
-function countDevices(flightctlBin, labelSelector) {
+function countDevices(flightctlBin, labelSelector, requiredStatus) {
   const attempts = [
     ['get', 'devices', '-l', labelSelector, '-o', 'json'],
     ['get', 'devices', '--selector', labelSelector, '-o', 'json'],
@@ -61,7 +62,13 @@ function countDevices(flightctlBin, labelSelector) {
       })
       const data = JSON.parse(out)
       if (Array.isArray(data.items)) {
-        return data.items.length
+        if (!requiredStatus) {
+          return data.items.length
+        }
+        return data.items.filter((d) => {
+          const status = d.status && d.status.summary && d.status.summary.status
+          return status === requiredStatus
+        }).length
       }
     } catch (e) {
       lastErr = e
@@ -189,9 +196,9 @@ function registerScaleFleetSimulatorTasks(on) {
     async scaleFleetSimulatorWaitForDevices({
       expected = 50,
       labelSelector = 'fleet=scale-fleet-00',
+      requiredStatus = 'Online',
       timeoutMs = 600000,
       pollMs = 5000,
-      settleMs = 0,
     }) {
       const flightctlBin = getFlightctlBin()
       const deadline = Date.now() + timeoutMs
@@ -199,16 +206,10 @@ function registerScaleFleetSimulatorTasks(on) {
       let lastErr
       while (Date.now() < deadline) {
         try {
-          const c = countDevices(flightctlBin, labelSelector)
+          const c = countDevices(flightctlBin, labelSelector, requiredStatus)
           last = c
           if (c >= expected) {
-            // The CLI confirmed enough devices, but the UI enrollment pipeline may still
-            // be processing the last batch. Wait an extra settle period so all devices
-            // are fully visible in the browser before any test navigates to page 4.
-            if (settleMs > 0) {
-              await sleep(settleMs)
-            }
-            return { count: c }
+            return { count: c, requiredStatus }
           }
         } catch (e) {
           lastErr = e
@@ -216,7 +217,7 @@ function registerScaleFleetSimulatorTasks(on) {
         await sleep(pollMs)
       }
       throw new Error(
-        `Timed out after ${timeoutMs}ms waiting for ${expected} devices (last count: ${last}). ${lastErr ? lastErr.message : ''}`,
+        `Timed out after ${timeoutMs}ms waiting for ${expected} devices with status "${requiredStatus || 'any'}" (last count: ${last}). ${lastErr ? lastErr.message : ''}`,
       )
     },
   })

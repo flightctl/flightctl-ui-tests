@@ -85,9 +85,8 @@ describe('Device Management', () => {
           labelSelector: 'fleet=scale-fleet-00',
           timeoutMs: 660000,
           pollMs: 5000,
-          settleMs: 25000,
         },
-        { timeout: 690000 },
+        { timeout: 660000 },
       )
     })
 
@@ -98,19 +97,19 @@ describe('Device Management', () => {
 
     it('should list 15 enrolled devices on pages 1–3 and 5 on page 4', () => {
       devicesPage.filterByFleetScaleLabel()
-      //devicesPage.goToFirstEnrolledDevicesPage()
 
-      cy.log('Page 1')
-      devicesPage.expectEnrolledDeviceRowsCount(15)
-      devicesPage.clickEnrolledDevicesNextPage()
-      cy.log('Page 2')
-      devicesPage.expectEnrolledDeviceRowsCount(15)
-      devicesPage.clickEnrolledDevicesNextPage()
-      cy.log('Page 3')
-      devicesPage.expectEnrolledDeviceRowsCount(15)
-      devicesPage.clickEnrolledDevicesNextPage()
-      cy.log('Page 4')
-      devicesPage.expectEnrolledDeviceRowsCount(5)
+      devicesPage.expectEnrolledDevicesTotalPages(4)
+
+      const expectedCounts = [15, 15, 15, 5]
+      expectedCounts.forEach((expected, i) => {
+        const page = i + 1
+        cy.log(`Page ${page}`)
+        devicesPage.expectEnrolledDevicesCurrentPage(page)
+        devicesPage.expectEnrolledDeviceRowsCount(expected)
+        if (i < expectedCounts.length - 1) {
+          devicesPage.clickEnrolledDevicesNextPage()
+        }
+      })
     })
 
     it('after decommissioning one device from page 3, page 3 still has 15 rows and page 4 has 4', () => {

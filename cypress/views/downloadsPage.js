@@ -38,7 +38,12 @@ const ARTIFACT_BY_PLATFORM = {
 
 export const downloadsPage = {
   openCommandLineTools() {
-    cy.get('button[aria-label="Help menu"]').click().should('be.visible')
+    // standalone UI: FlightCtl's own help menu toggle (data-testid only present in standalone app)
+    // OCP plugin: the OCP shell renders the help button with aria-label="Help menu"
+    const helpMenuSelector = Cypress.env('useAcmNavigation')
+      ? 'button[aria-label="Help menu"]'
+      : '[data-testid="masthead-help-menu"]'
+    cy.get(helpMenuSelector).click().should('be.visible')
     cy.contains('Command Line Tools').click()
     cy.url({ timeout: 30000 }).should('include', 'command-line-tools')
   },

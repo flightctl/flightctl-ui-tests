@@ -1,4 +1,4 @@
-import { common } from './common'
+import { common, pfV } from './common'
 
 /** Fleet name validation: red error icon color when invalid */
 const VALIDATION_ERROR_ICON_COLOR = '#b1380b'
@@ -78,7 +78,11 @@ export const fleetsPage = {
     cy.get('[data-testid="rich-validation-field-name"]').should('be.visible')
     cy.get('[data-testid="rich-validation-field-name"]').type(fleetname)
     cy.get('[data-testid="rich-validation-field-name"]').should('have.value', 'test-fleet')
-    cy.get('.pf-v6-l-stack__item > .pf-v6-c-label-group > .pf-v6-c-label-group__main > .pf-v6-c-label-group__list').click()
+    // Click "Add label" in the Device selector section — the button may be inside
+    // the LabelGroup (old plugin) or rendered separately by EditableLabelControl (new plugin).
+    cy.contains('button', 'Add label').first().click()
+    cy.get('input[aria-label="New label"]').should('be.visible').clear().type('fleet=test-fleet{enter}')
+    cy.wait(500)
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="textfield-osSpec"]').should('be.visible')
     cy.get('[data-testid="textfield-osSpec"]').type(img)
@@ -94,9 +98,9 @@ export const fleetsPage = {
   editFleet: (fleetname = Cypress.env('fleetname'), img1 = Cypress.env('newimage')) => {
     common.navigateTo('Fleets')
     
-    cy.get(`[data-testid="fleet-row-actions-${fleetname}"] .pf-v6-c-menu-toggle`).should('be.visible').click()
-    cy.contains('.pf-v6-c-menu__item-text', 'Edit fleet configurations').should('be.visible').click()
-    cy.get(':nth-child(1) > .pf-v6-c-form__group-label > .pf-v6-c-form__label > .pf-v6-c-form__label-text').should('contain', 'Fleet name')
+    cy.get(`[data-testid="fleet-row-actions-${fleetname}"] ${pfV('c-menu-toggle')}`).should('be.visible').click()
+    cy.contains(`${pfV('c-menu__item-text')}`, 'Edit fleet configurations').should('be.visible').click()
+    cy.get(`${pfV('c-form__label-text')}`).first().should('contain', 'Fleet name')
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="textfield-osSpec"]').should('be.visible')
     cy.get('[data-testid="textfield-osSpec"]').clear()
@@ -105,7 +109,7 @@ export const fleetsPage = {
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="wizard-save-button"]').click()
-    cy.get('.pf-v6-c-title').should('contain', fleetname)
+    cy.get(`${pfV('c-title')}`).should('contain', fleetname)
   },
 
   /**
@@ -114,8 +118,8 @@ export const fleetsPage = {
   deleteFleet: (fleetname = Cypress.env('fleetname')) => {
     common.navigateTo('Fleets')
     
-    cy.get('[data-label="Name"]').contains(fleetname)
-    cy.get('.pf-v6-c-table__tbody > .pf-v6-c-table__tr > .pf-v6-c-table__check > label > input').click()
+    cy.contains('td', fleetname, { timeout: 10000 }).should('be.visible')
+    cy.contains('td', fleetname).closest('tr').find('input[type="checkbox"]').click()
     cy.get('[data-testid="toolbar-delete-fleets"]').should('be.visible')
     cy.get('[data-testid="toolbar-delete-fleets"]').click()
     cy.get('[data-testid="modal-delete-fleets-confirm"]').should('be.visible')

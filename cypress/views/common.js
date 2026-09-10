@@ -2,6 +2,33 @@
  * Common utilities for test operations
  */
 
+/**
+ * Return a CSS selector that matches both PatternFly v5 and v6 class prefixes.
+ * Example: pfV('c-card') → '.pf-v5-c-card, .pf-v6-c-card'
+ * @param {string} suffix - PF class suffix without the 'pf-vN-' prefix (e.g. 'c-card', 'l-stack')
+ */
+export const pfV = (suffix) => `.pf-v5-${suffix}, .pf-v6-${suffix}`
+
+/**
+ * Locate the "Fleet" (or legacy "Fleet name") label on a device details page.
+ * Supports both the new DescriptionListTerm layout (flightctl-ui >= Sep 2026)
+ * and the legacy StackItem.fctl-device-details-tab__label layout.
+ * Returns a Cypress chainable scoped to the label's parent row.
+ */
+export const deviceDetailsFleetRow = (timeout = 60000) => {
+  return cy.get('body', { timeout }).then(($body) => {
+    const hasNewLayout = $body.find('dt.pf-v5-c-description-list__term, dt.pf-v6-c-description-list__term').filter(
+      (_, el) => /^Fleet$/.test(el.textContent.trim()),
+    ).length > 0
+    if (hasNewLayout) {
+      return cy.contains('dt.pf-v5-c-description-list__term, dt.pf-v6-c-description-list__term', /^Fleet$/, { timeout })
+        .closest('.pf-v5-c-description-list__group, .pf-v6-c-description-list__group')
+    }
+    return cy.contains('.fctl-device-details-tab__label', 'Fleet name', { timeout })
+      .closest('.pf-v5-l-stack, .pf-v6-l-stack')
+  })
+}
+
 /** True after org selection was handled or confirmed absent — only run once per spec (first navigateTo). */
 let organizationSelectionHandled = false
 
@@ -37,12 +64,12 @@ export const common = {
         return
       }
 
-      const acmSidebar = '.pf-v6-c-page__sidebar'
+      const acmSidebar = '.pf-v5-c-page__sidebar, .pf-v6-c-page__sidebar'
       cy.get(navToggle, { timeout: 30000 }).should('exist')
       // Only open the sidebar if it's collapsed (clicking when open would close it)
       cy.get('body').then(($body) => {
         const sidebarExpanded =
-          $body.find('.pf-v6-c-page__sidebar.pf-m-expanded').length > 0 ||
+          $body.find('.pf-v5-c-page__sidebar, .pf-v6-c-page__sidebar.pf-m-expanded').length > 0 ||
           $body.find(navToggle).attr('aria-expanded') === 'true'
         if (!sidebarExpanded) {
           cy.get(navToggle).first().click()
@@ -66,7 +93,7 @@ export const common = {
           // After perspective switch the sidebar may collapse — re-open if needed
           cy.get('body').then(($b2) => {
             const expanded =
-              $b2.find('.pf-v6-c-page__sidebar.pf-m-expanded').length > 0 ||
+              $b2.find('.pf-v5-c-page__sidebar, .pf-v6-c-page__sidebar.pf-m-expanded').length > 0 ||
               $b2.find(navToggle).attr('aria-expanded') === 'true'
             if (!expanded) {
               cy.get(navToggle).first().click()
@@ -97,7 +124,7 @@ export const common = {
         })
       common.selectOrganizationIfNeeded('Default')
     } else {
-      const sidebar = '.pf-v6-c-page__sidebar'
+      const sidebar = '.pf-v5-c-page__sidebar, .pf-v6-c-page__sidebar'
       // Overview in standalone: use the sidebar nav item directly
       if (page === 'Overview') {
         common.selectOrganizationIfNeeded('Default')
@@ -150,7 +177,7 @@ export const common = {
           cy.log(`Organization selection page detected, selecting ${orgName}`)
           cy.contains(orgName).click()
           cy.contains('button', 'Continue').click()
-          cy.get('.pf-v6-c-page', { timeout: 30000 }).should('exist')
+          cy.get('.pf-v5-c-page, .pf-v6-c-page', { timeout: 30000 }).should('exist')
           cy.then(markHandled)
         } else if (attempt < maxRetries) {
           cy.log(`Organization selection not found yet, retrying...`)

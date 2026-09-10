@@ -12,8 +12,8 @@ const clickLabel = (labelText) =>
  */
 const inputInGroup = (labelText) =>
   cy
-    .contains('.pf-v6-c-form__group-label', labelText)
-    .closest('.pf-v6-c-form__group')
+    .contains('.pf-v5-c-form__group-label, .pf-v6-c-form__group-label', labelText)
+    .closest('.pf-v5-c-form__group, .pf-v6-c-form__group')
     .find('input, textarea')
     .first()
 
@@ -22,12 +22,12 @@ const inputInGroup = (labelText) =>
  * contains labelText, then click the matching option.
  */
 const selectInGroup = (labelText, optionText) => {
-  cy.contains('.pf-v6-c-form__group-label', labelText)
-    .closest('.pf-v6-c-form__group')
-    .find('button[aria-haspopup="listbox"], button.pf-v6-c-menu-toggle')
+  cy.contains('.pf-v5-c-form__group-label, .pf-v6-c-form__group-label', labelText)
+    .closest('.pf-v5-c-form__group, .pf-v6-c-form__group')
+    .find('button[aria-haspopup="listbox"], button.pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle')
     .should('be.visible')
     .click()
-  cy.contains('.pf-v6-c-menu__item-text, li', optionText).should('be.visible').click()
+  cy.contains('.pf-v5-c-menu__item-text, .pf-v6-c-menu__item-text, li', optionText).should('be.visible').click()
 }
 
 // ─── Page object ─────────────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ export const buildImagePage = {
 
   selectDefaultCatalog: () => {
     cy.get('#selectfield-catalog-menu').should('be.visible').click()
-    cy.contains('.pf-v6-c-menu__item-text', 'Default').should('be.visible').click()
+    cy.contains('.pf-v5-c-menu__item-text, .pf-v6-c-menu__item-text', 'Default').should('be.visible').click()
   },
 
   selectNewCatalogItem: () => {

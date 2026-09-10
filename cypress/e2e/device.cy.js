@@ -138,16 +138,16 @@ describe('Device Management', () => {
       devicesPage.selectLogTimeRange('Current boot')
       devicesPage.retrieveLogsAndVerify()
       cy.contains('Show live logs', { timeout: 15000 }).should('be.visible')
-      cy.get('.pf-v6-c-log-viewer__list-item', { timeout: 60000 }).its('length').then((initialCount) => {
+      cy.get('.pf-v5-c-log-viewer__list-item, .pf-v6-c-log-viewer__list-item', { timeout: 60000 }).its('length').then((initialCount) => {
         cy.contains('Show live logs').click()
-        cy.get('.pf-v6-c-log-viewer__list-item', { timeout: 30000 })
+        cy.get('.pf-v5-c-log-viewer__list-item, .pf-v6-c-log-viewer__list-item', { timeout: 30000 })
           .should('have.length.greaterThan', initialCount)
       })
     })
 
     it('Should stop live streaming when toggled off', () => {
       cy.contains('Show live logs').click()
-      cy.get('.pf-v6-c-log-viewer', { timeout: 5000 }).should('be.visible')
+      cy.get('.pf-v5-c-log-viewer, .pf-v6-c-log-viewer', { timeout: 5000 }).should('be.visible')
     })
 
     it('Should find and highlight search results', () => {

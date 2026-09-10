@@ -1,4 +1,4 @@
-import { common } from './common'
+import { common, pfV, deviceDetailsFleetRow } from './common'
 
 /** Default table row index for flows that assume a single primary device row */
 const ROW_0 = 0
@@ -69,8 +69,8 @@ export const LOG_PRIORITIES = [
 ]
 
 const LOGS_TAB = '[data-testid="device-details-tab-logs"]'
-const LOG_VIEWER = '.pf-v6-c-log-viewer'
-const LOG_VIEWER_LINE = '.pf-v6-c-log-viewer__list-item'
+const LOG_VIEWER = '.pf-v5-c-log-viewer, .pf-v6-c-log-viewer'
+const LOG_VIEWER_LINE = '.pf-v5-c-log-viewer__list-item, .pf-v6-c-log-viewer__list-item'
 const LOG_SEARCH_INPUT = 'input[placeholder="Search logs"]'
 const LOG_FILE_PATH_INPUT = 'input[name="logFilePath"]'
 const LOG_CATEGORY_TOGGLE = /^(Agent|System|File path)$/
@@ -187,11 +187,11 @@ const addVmApplication = (index, app = {}) => {
         ? `[id="applications[${index}]-yaml-mode"]`
         : `[id="${fieldId('name')}"]`
     cy.get(appSectionAnchor)
-      .closest('.pf-v6-c-expandable-section, .pf-c-expandable-section')
+      .closest('.pf-v5-c-expandable-section, .pf-v6-c-expandable-section, .pf-c-expandable-section')
       .scrollIntoView({ block: 'center' })
       .within(() => {
         cy.contains('Map ports from inside the VM to the host device')
-          .closest('.pf-v6-c-form__group, .pf-c-form__group')
+          .closest('.pf-v5-c-form__group, .pf-v6-c-form__group, .pf-c-form__group')
           .within(() => {
             cy.get('input').eq(0).clear({ force: true }).type(vmApp.hostPort, { force: true })
             cy.get('input[aria-label="VM port"]').clear({ force: true }).type(vmApp.guestPort, { force: true })
@@ -217,10 +217,10 @@ const enrolledDevicesListSection = () =>
 /** PatternFly disables pagination while `isUpdating`; wait for spinner to leave the devices paginator. */
 const waitEnrolledPaginationIdle = () => {
   enrolledDevicesListSection()
-    .find('.pf-v6-c-pagination')
+    .find('.pf-v5-c-pagination, .pf-v6-c-pagination')
     .first()
     .should(($p) => {
-      expect($p.find('.pf-v6-c-spinner').length).to.eq(0)
+      expect($p.find('.pf-v5-c-spinner, .pf-v6-c-spinner').length).to.eq(0)
     }, { timeout: 120000 })
 }
 
@@ -354,7 +354,7 @@ export const devicesPage = {
 
     enrolledDeviceRowByAlias(currentName)
       .scrollIntoView({ block: 'center' })
-      .find(`[data-testid^="device-row-actions-"] .pf-v6-c-menu-toggle`)
+      .find(`[data-testid^="device-row-actions-"] .pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle`)
       .click()
     cy.wait(1000)
     cy.contains('Edit device configurations').click()
@@ -586,10 +586,10 @@ export const devicesPage = {
 
   decommissionDeviceAtEnrolledRow: (rowIndex = 0) => {
     cy.get(`[data-testid="enrolled-device-row-${rowIndex}"]`)
-      .find(`[data-testid^="device-row-actions-"] .pf-v6-c-menu-toggle`)
+      .find(`[data-testid^="device-row-actions-"] .pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle`)
       .click()
     cy.contains('[role="menuitem"]', 'Decommission device').click()
-    cy.get('.pf-v6-c-modal-box').within(() => {
+    cy.get('.pf-v5-c-modal-box, .pf-v6-c-modal-box').within(() => {
       cy.contains('button.pf-m-danger', 'Decommission device').click()
     })
     cy.get('[data-testid="decommissioned-devices-table"]', { timeout: 120000 }).should('exist')
@@ -628,21 +628,21 @@ export const devicesPage = {
       .click({ force: true })
     cy.get('[data-testid="device-details-title"]', { timeout: 120000 }).should('be.visible')
     cy.get('[data-testid="device-details-tab-details"]').should('be.visible')
-    cy.contains('.fctl-device-details-tab__label', 'Fleet name', { timeout: 60000 })
-      .closest('.pf-v6-l-stack')
-      .find('.fctl-resource-link__text', { timeout: 60000 })
-      .invoke('text')
-      .as('expectedFleetName')
-    cy.contains('.fctl-device-details-tab__label', 'Fleet name')
-      .closest('.pf-v6-l-stack')
-      .should('not.contain', 'None')
+    deviceDetailsFleetRow(60000).then(($row) => {
+      const fleetText = $row.text().replace(/Fleet\s*(name)?/i, '').trim()
+      // Extract fleet name from the row text (may contain 'None' or a fleet link)
+      const linkEl = $row.find('.fctl-resource-link__text, a').first()
+      const fleet = linkEl.length ? linkEl.text().trim() : fleetText
+      cy.wrap(fleet).as('expectedFleetName')
+    })
+    deviceDetailsFleetRow().should('not.contain', 'None')
 
     cy.get('@expectedFleetName').then((fleetName) => {
       const fleet = String(fleetName).trim()
       const bindingLabel =
         FLEET_DEVICE_SELECTOR_LABELS[fleet] || `fleet=${fleet}`
       cy.get('body').then(($body) => {
-        const hasBindingLabel = [...$body.find('.pf-v6-c-label')].some((el) => {
+        const hasBindingLabel = [...$body.find(`${pfV('c-label')}`)].some((el) => {
           const text = (el.textContent || '').trim().replace(/:/g, '=')
           return text.includes(bindingLabel)
         })
@@ -657,7 +657,7 @@ export const devicesPage = {
     })
 
     cy.get('@fleetLabelTest').then(({ bindingLabel, fleet }) => {
-      cy.contains('.pf-v6-c-label', bindingLabel).should('exist')
+      cy.contains(`${pfV('c-label')}`, bindingLabel).should('exist')
       devicesPage.removeFleetLabelOnDeviceDetails(bindingLabel)
       devicesPage.expectDeviceDetailsFleetDisconnected()
       devicesPage.addFleetLabelOnDeviceDetails(bindingLabel)
@@ -666,19 +666,15 @@ export const devicesPage = {
   },
 
   expectDeviceDetailsFleetConnected: (fleetName = SCALE_FLEET_NAME) => {
-    cy.contains('.fctl-device-details-tab__label', 'Fleet name', { timeout: 120000 })
-      .closest('.pf-v6-l-stack')
-      .should('contain', fleetName)
+    deviceDetailsFleetRow(120000).should('contain', fleetName)
   },
 
   expectDeviceDetailsFleetDisconnected: () => {
-    cy.contains('.fctl-device-details-tab__label', 'Fleet name', { timeout: 120000 })
-      .closest('.pf-v6-l-stack')
-      .should('contain', 'None')
+    deviceDetailsFleetRow(120000).should('contain', 'None')
   },
 
   removeFleetLabelOnDeviceDetails: (labelText = SCALE_FLEET_LABEL_TEXT) => {
-    cy.contains('.pf-v6-c-label', labelText)
+    cy.contains(`${pfV('c-label')}`, labelText)
       .find(`button[aria-label="Close ${labelText}"]`)
       .click()
   },
@@ -692,7 +688,7 @@ export const devicesPage = {
     common.navigateTo('Devices')
     enrolledDeviceRowByAlias(deviceName)
       .scrollIntoView({ block: 'center' })
-      .find(`[data-testid^="device-row-actions-"] .pf-v6-c-menu-toggle`)
+      .find(`[data-testid^="device-row-actions-"] .pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle`)
       .click()
     cy.contains('Edit device configurations').click()
     cy.contains('h1', 'Edit device').should('be.visible')
@@ -751,7 +747,7 @@ export const devicesPage = {
   },
 
   selectVmConsole: (appName) => {
-    cy.get('[data-testid="device-terminal-panel"] .pf-v6-c-menu-toggle').click()
+    cy.get('[data-testid="device-terminal-panel"] .pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle').click()
     cy.contains('[role="option"]', appName).click()
     cy.get(`${APP_CONSOLE_TERMINAL}, ${APP_CONSOLE_ERROR}`, { timeout: 90000 }).should('be.visible')
     cy.get('body').then(($body) => {

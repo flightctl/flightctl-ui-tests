@@ -16,11 +16,17 @@ export const pfV = (suffix) => `.pf-v5-${suffix}, .pf-v6-${suffix}`
  * Returns a Cypress chainable scoped to the label's parent row.
  */
 export const deviceDetailsFleetRow = (timeout = 60000) => {
-  return cy.get('body', { timeout }).then(($body) => {
-    const hasNewLayout = $body.find('dt.pf-v5-c-description-list__term, dt.pf-v6-c-description-list__term').filter(
-      (_, el) => /^Fleet$/.test(el.textContent.trim()),
-    ).length > 0
-    if (hasNewLayout) {
+  // Wait for either layout element to actually appear (retries until timeout).
+  // The old cy.get('body').then() approach checked synchronously — if the details
+  // tab hadn't rendered yet, hasNewLayout was false and we retried the wrong selector.
+  const bothSelectors = [
+    'dt.pf-v5-c-description-list__term',
+    'dt.pf-v6-c-description-list__term',
+    '.fctl-device-details-tab__label',
+  ].join(', ')
+  return cy.get(bothSelectors, { timeout }).then(($foundEls) => {
+    const dtFleet = $foundEls.filter('dt').filter((_, el) => /^Fleet$/.test(el.textContent.trim()))
+    if (dtFleet.length > 0) {
       return cy.contains('dt.pf-v5-c-description-list__term, dt.pf-v6-c-description-list__term', /^Fleet$/, { timeout })
         .closest('.pf-v5-c-description-list__group, .pf-v6-c-description-list__group')
     }

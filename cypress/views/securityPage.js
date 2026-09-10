@@ -94,31 +94,46 @@ export const securityPage = {
   },
 
   /**
+   * Expand the Security overview card if it's a collapsible entity card (Device/Fleet page).
+   * On the Overview page, the card is not collapsible so this is a no-op.
+   * Must be called BEFORE .should() assertions that inspect the expanded content.
+   */
+  _expandSecurityCardIfNeeded(timeout = 15000) {
+    cy.scrollTo('bottom', { ensureScrollable: false })
+    cy.get('.pf-v5-c-card, .pf-v6-c-card', { timeout }).then(($cards) => {
+      const card = $cards.filter((_, el) =>
+        Cypress.$(el).find('.pf-v5-c-card__title-text, .pf-v6-c-card__title-text').text().includes('Security overview')
+      )
+      if (!card.length) return
+      const toggle = card.find('button[aria-label="Toggle security details"]')
+      if (toggle.length > 0 && toggle.attr('aria-expanded') !== 'true') {
+        cy.wrap(toggle).click()
+        cy.wait(500)
+      }
+    })
+  },
+
+  /**
    * Verify vulnerability count is displayed.
    *
    * Behaviour depends on which page type the selector lands on:
    *
-   * Overview page — renders SecurityOverviewSummary:
+   * Overview page — renders SecurityOverviewSummaryOverview:
    *   card text includes "Total active vulnerabilities." (system-wide count).
-   *   We verify the label is present. The exact count is system-wide and may include
-   *   CVEs from other devices, so we do NOT assert the precise number here.
+   *   We verify the large-font element shows the exact count.
    *
-   * Device / Fleet page — renders only VulnerabilitiesTable (no count summary):
-   *   We fall back to asserting that the CVE table has exactly `count` rows.
+   * Device / Fleet page — renders EntitySecurityOverviewCard with expandable content:
+   *   The VulnerabilitiesTable is inside a collapsed CardExpandableContent.
+   *   We expand the card first, then assert table rows or empty state.
    *
    * @param {number} count - Expected total number of vulnerabilities
-   * @param {number} timeout - Assertion timeout in ms (default 90000). Use a short value
-   *   (e.g. 10000) when the state is expected to already be present — e.g. the initial
-   *   "0 CVEs" check at test start where no waiting is needed.
+   * @param {number} timeout - Assertion timeout in ms (default 90000).
    */
   expectVulnerabilityCount(count, timeout = 90000) {
+    // Expand the entity card if present (Device/Fleet page) so the table/empty state is visible.
+    this._expandSecurityCardIfNeeded(Math.min(timeout, 30000))
+
     if (count === 0) {
-      // Everything (card search, scroll, text assertion) inside one .should() so Cypress
-      // retries the whole block on every tick within `timeout`. If we chain .contains() off
-      // .get() instead, only the outer .get() benefits from the timeout; the chained
-      // .contains() uses its own 4 s default, causing premature failures on slow ACM pages.
-      // Pre-scroll the page to the bottom so the Security overview card (below the fold on ACM
-      // pages) is in the rendered viewport before we query for .pf-v6-c-card elements.
       cy.scrollTo('bottom', { ensureScrollable: false })
       cy.get('.pf-v5-c-card, .pf-v6-c-card', { timeout })
         .should(($cards) => {
@@ -137,11 +152,14 @@ export const securityPage = {
             text.includes('0') &&
             (text.includes('Total active vulnerabilities') ||
              text.includes('total active vulnerabilities'))
-          expect(hasNoVulnState || hasZeroTotal, 'Should show 0 vulnerabilities').to.be.true
+          // Entity page severity tiles: all severities show 0
+          const severityGrid = card.first().find('[aria-label="Vulnerability counts by severity"]')
+          const hasSeverityTilesAllZero = severityGrid.length > 0 &&
+            severityGrid.find('.pf-v5-u-font-size-xl strong, .pf-v6-u-font-size-xl strong').toArray()
+              .every((el) => el.textContent.trim() === '0')
+          expect(hasNoVulnState || hasZeroTotal || hasSeverityTilesAllZero, 'Should show 0 vulnerabilities').to.be.true
         })
     } else {
-      // scroll + assert inside one .should() so the timeout covers the whole retry loop
-      // and the scroll keeps the card visible on every retry (important on long ACM pages).
       cy.scrollTo('bottom', { ensureScrollable: false })
       cy.get('.pf-v5-c-card, .pf-v6-c-card', { timeout })
         .should(($cards) => {
@@ -154,21 +172,26 @@ export const securityPage = {
 
           const text = card.first().text()
           if (text.includes('Total active vulnerabilities')) {
-            // Overview page: the count is rendered in a large-font element whose text is
-            // exactly the number (or "--" when no devices). text.includes(count) is too loose
-            // and matches any digit in the card (dates, device counts, etc.).
             const countEl = card.first().find('.pf-v5-u-font-size-4xl, .pf-v6-u-font-size-4xl')
             const countText = countEl.text().trim()
             expect(countText, `Expected CVE count element to show ${count}`).to.equal(count.toString())
           } else {
-            // Device / Fleet page: count actual CVE rows (tr elements whose td has data-label).
-            // Exclude PF6 expandable-row siblings — the Fleet table has expandable rows where
-            // each CVE has a companion <tr class="pf-v6-c-table__expandable-row"> that also
-            // contains td[data-label] elements, doubling the count without this exclusion.
+            // Device / Fleet page: try table rows first (visible when card is expanded),
+            // fall back to severity tile sum if table not yet rendered.
             const cveRows = card.first().find(
               'table[aria-label="Vulnerabilities table"] tbody tr:not(.pf-v5-c-table__expandable-row, .pf-v6-c-table__expandable-row) td[data-label]'
             ).closest('tr')
-            expect(cveRows.length, `Expected ${count} CVE rows in vulnerability table`).to.equal(count)
+            if (cveRows.length > 0) {
+              expect(cveRows.length, `Expected ${count} CVE rows in vulnerability table`).to.equal(count)
+            } else {
+              // Card may not have expanded yet — check severity tile sum
+              const severityGrid = card.first().find('[aria-label="Vulnerability counts by severity"]')
+              expect(severityGrid.length, 'Severity summary grid should exist').to.be.gt(0)
+              const total = severityGrid.find('.pf-v5-u-font-size-xl strong, .pf-v6-u-font-size-xl strong')
+                .toArray()
+                .reduce((sum, el) => sum + parseInt(el.textContent.trim() || '0', 10), 0)
+              expect(total, `Expected severity tiles to sum to ${count}`).to.equal(count)
+            }
           }
         })
     }
@@ -188,11 +211,14 @@ export const securityPage = {
    * @param {object} counts - Object with critical, high, medium, low counts
    */
   expectSeverityCounts(counts) {
+    // Expand entity card if needed so severity tiles are visible
+    this._expandSecurityCardIfNeeded()
     cy.get('.pf-v5-c-card, .pf-v6-c-card').contains('.pf-v5-c-card__title-text, .pf-v6-c-card__title-text', 'Security overview')
       .parents('.pf-v5-c-card, .pf-v6-c-card')
       .then(($card) => {
-        if (!$card.text().includes('Total active vulnerabilities')) {
-          // Device/Fleet page — no severity stat boxes, nothing to verify here.
+        // Check for severity summary grid (entity or overview page)
+        const severityGrid = $card.find('[aria-label="Vulnerability counts by severity"]')
+        if (severityGrid.length === 0 && !$card.text().includes('Total active vulnerabilities')) {
           cy.log('expectSeverityCounts: no severity summary on this page, skipping')
           return
         }
@@ -481,6 +507,17 @@ export const securityPage = {
       card[0].scrollIntoView({ behavior: 'instant', block: 'end' })
       const $c = card.first()
       const text = $c.text()
+
+      // Entity page (Device/Fleet): check severity tile counts from the summary grid.
+      // The expandable card body always shows SeverityTilesGrid regardless of expand state.
+      const severityGrid = $c.find('[aria-label="Vulnerability counts by severity"]')
+      if (severityGrid.length > 0) {
+        const total = severityGrid.find('.pf-v5-u-font-size-xl strong, .pf-v6-u-font-size-xl strong')
+          .toArray()
+          .reduce((sum, el) => sum + parseInt(el.textContent.trim() || '0', 10), 0)
+        return total === count
+      }
+
       if (count === 0) {
         return (
           text.includes('No vulnerabilities detected') ||
@@ -491,13 +528,10 @@ export const securityPage = {
         )
       } else if (text.includes('Total active vulnerabilities')) {
         // Overview page: the count is in a large-font element whose text is exactly the number.
-        // text.includes(count) is too loose and false-positives on any digit in the card.
         const countText = $c.find('.pf-v5-u-font-size-4xl, .pf-v6-u-font-size-4xl').text().trim()
         return countText === count.toString()
       } else {
-        // Device / Fleet page: count actual CVE rows (tr elements whose td has data-label).
-        // Exclude expandable-row siblings — the Fleet table uses PF6 expandable rows where
-        // each CVE has a companion tr.pf-v5-c-table__expandable-row, .pf-v6-c-table__expandable-row that doubles the count.
+        // Fallback: count actual CVE rows if the table is visible.
         const cveRows = $c.find(
           'table[aria-label="Vulnerabilities table"] tbody tr:not(.pf-v5-c-table__expandable-row, .pf-v6-c-table__expandable-row) td[data-label]'
         ).closest('tr')
@@ -533,6 +567,8 @@ export const securityPage = {
           cy.reload()
           cy.wait(5000)
           cy.scrollTo('bottom', { ensureScrollable: false })
+          // Re-expand entity card after reload (it resets to collapsed)
+          securityPage._expandSecurityCardIfNeeded()
           securityPage.expectVulnerabilityCount(count, reloadWaitMs)
           return
         }

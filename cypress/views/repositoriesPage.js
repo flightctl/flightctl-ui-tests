@@ -172,7 +172,7 @@ export const repositoriesPage = {
     cy.contains('[data-testid^="repository-name-link-"]', Cypress.env('fleetname')).should('be.visible')
     cy.contains('[data-testid^="repository-name-link-"]', Cypress.env('fleetname'))
       .closest('tr')
-      .find('[data-testid^="repository-row-actions-"] .pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle')
+      .find('[data-testid^="repository-row-actions-"] .pf-v5-c-menu-toggle, [data-testid^="repository-row-actions-"] .pf-v6-c-menu-toggle')
       .click()
     cy.contains('.pf-v5-c-menu__item-text, .pf-v6-c-menu__item-text', 'Edit repository').should('be.visible').click()
     cy.get('[data-testid="repository-add-resource-sync-button"]').click()

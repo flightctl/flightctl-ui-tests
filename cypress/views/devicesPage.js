@@ -354,7 +354,7 @@ export const devicesPage = {
 
     enrolledDeviceRowByAlias(currentName)
       .scrollIntoView({ block: 'center' })
-      .find(`[data-testid^="device-row-actions-"] .pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle`)
+      .find(`[data-testid^="device-row-actions-"] .pf-v5-c-menu-toggle, [data-testid^="device-row-actions-"] .pf-v6-c-menu-toggle`)
       .click()
     cy.wait(1000)
     cy.contains('Edit device configurations').click()
@@ -409,11 +409,14 @@ export const devicesPage = {
   decommissionDevice: (deviceName = 'test-device-edited2') => {
     common.navigateTo('Devices')
 
+    // Wait for the row to stabilize, then re-query for a fresh checkbox reference
+    // to avoid "element detached from DOM" errors when the table re-renders.
     enrolledDeviceRowByAlias(deviceName)
       .scrollIntoView({ block: 'center' })
-      .find('input[type="checkbox"]')
       .should('be.visible')
-      .click()
+    enrolledDeviceRowByAlias(deviceName)
+      .find('input[type="checkbox"]')
+      .check({ force: true })
     cy.get('[data-testid="toolbar-decommission-devices"]').should('be.visible')
     cy.get('[data-testid="toolbar-decommission-devices"]').click()
     cy.get('[data-testid="modal-decommission-confirm"]').should('be.visible')
@@ -586,7 +589,7 @@ export const devicesPage = {
 
   decommissionDeviceAtEnrolledRow: (rowIndex = 0) => {
     cy.get(`[data-testid="enrolled-device-row-${rowIndex}"]`)
-      .find(`[data-testid^="device-row-actions-"] .pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle`)
+      .find(`[data-testid^="device-row-actions-"] .pf-v5-c-menu-toggle, [data-testid^="device-row-actions-"] .pf-v6-c-menu-toggle`)
       .click()
     cy.contains('[role="menuitem"]', 'Decommission device').click()
     cy.get('.pf-v5-c-modal-box, .pf-v6-c-modal-box').within(() => {
@@ -688,7 +691,7 @@ export const devicesPage = {
     common.navigateTo('Devices')
     enrolledDeviceRowByAlias(deviceName)
       .scrollIntoView({ block: 'center' })
-      .find(`[data-testid^="device-row-actions-"] .pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle`)
+      .find(`[data-testid^="device-row-actions-"] .pf-v5-c-menu-toggle, [data-testid^="device-row-actions-"] .pf-v6-c-menu-toggle`)
       .click()
     cy.contains('Edit device configurations').click()
     cy.contains('h1', 'Edit device').should('be.visible')
@@ -747,7 +750,7 @@ export const devicesPage = {
   },
 
   selectVmConsole: (appName) => {
-    cy.get('[data-testid="device-terminal-panel"] .pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle').click()
+    cy.get('[data-testid="device-terminal-panel"] .pf-v5-c-menu-toggle, [data-testid="device-terminal-panel"] .pf-v6-c-menu-toggle').click()
     cy.contains('[role="option"]', appName).click()
     cy.get(`${APP_CONSOLE_TERMINAL}, ${APP_CONSOLE_ERROR}`, { timeout: 90000 }).should('be.visible')
     cy.get('body').then(($body) => {
@@ -763,20 +766,20 @@ export const devicesPage = {
   },
 
   loginVmSerialConsole: (user = 'fedora', password = 'fedora') => {
-    cy.get(APP_CONSOLE_XTERM_INPUT, { timeout: 30000 }).should('exist').click({ force: true }).type('{enter}', { force: true })
+    cy.get(APP_CONSOLE_XTERM_INPUT, { timeout: 30000 }).first().should('exist').click({ force: true }).type('{enter}', { force: true })
     cy.get(APP_CONSOLE_XTERM_ROWS, { timeout: 120000 }).should(($el) => {
       expect($el.text()).to.match(/login:/i)
     })
-    cy.get(APP_CONSOLE_XTERM_INPUT).click({ force: true }).type(`${user}{enter}`, { force: true, delay: 50 })
+    cy.get(APP_CONSOLE_XTERM_INPUT).first().click({ force: true }).type(`${user}{enter}`, { force: true, delay: 50 })
     cy.get(APP_CONSOLE_XTERM_ROWS, { timeout: 30000 }).should(($el) => {
       expect($el.text()).to.match(/Password:/i)
     })
-    cy.get(APP_CONSOLE_XTERM_INPUT).type(`${password}{enter}`, { force: true, delay: 50, log: false })
-    cy.get(APP_CONSOLE_XTERM_INPUT).type('{enter}', { force: true })
+    cy.get(APP_CONSOLE_XTERM_INPUT).first().type(`${password}{enter}`, { force: true, delay: 50, log: false })
+    cy.get(APP_CONSOLE_XTERM_INPUT).first().type('{enter}', { force: true })
     cy.get(APP_CONSOLE_XTERM_ROWS, { timeout: 60000 }).should(($el) => {
       expect($el.text()).to.match(new RegExp(`${user}@`))
     })
-    cy.get(APP_CONSOLE_XTERM_INPUT).type('whoami{enter}', { force: true, delay: 50 })
+    cy.get(APP_CONSOLE_XTERM_INPUT).first().type('whoami{enter}', { force: true, delay: 50 })
     cy.get(APP_CONSOLE_XTERM_ROWS, { timeout: 30000 }).should(($el) => {
       expect($el.text()).to.match(new RegExp(`whoami[\\s\\S]*${user}`))
     })

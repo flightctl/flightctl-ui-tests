@@ -24,7 +24,7 @@ const inputInGroup = (labelText) =>
 const selectInGroup = (labelText, optionText) => {
   cy.contains('.pf-v5-c-form__group-label, .pf-v6-c-form__group-label', labelText)
     .closest('.pf-v5-c-form__group, .pf-v6-c-form__group')
-    .find('button[aria-haspopup="listbox"], button.pf-v5-c-menu-toggle, .pf-v6-c-menu-toggle')
+    .find('button[aria-haspopup="listbox"], button.pf-v5-c-menu-toggle, button.pf-v6-c-menu-toggle')
     .should('be.visible')
     .click()
   cy.contains('.pf-v5-c-menu__item-text, .pf-v6-c-menu__item-text, li', optionText).should('be.visible').click()

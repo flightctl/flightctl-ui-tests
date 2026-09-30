@@ -6,6 +6,12 @@ import { common } from './common'
 const clickLabel = (labelText) =>
   cy.contains('label', labelText).should('be.visible').click()
 
+/** OCP 4.20 uses the legacy Formik id; OCP 4.22 uses the redesigned radio id. */
+const OCI_READ_WRITE_ACCESS = '#ReadWrite, #radiofield-oci-access-readwrite'
+
+/** OCP 4.20 and 4.22 use different ids for the same Advanced Config control. */
+const ADVANCED_CONFIG_CHECKBOX = '#checkboxfield-useAdvancedConfig, #use-advanced-configurations'
+
 /**
  * Return the first <input> or <textarea> inside the PatternFly form group
  * whose heading contains the given text.
@@ -59,7 +65,7 @@ export const buildImagePage = {
   },
 
   selectReadAndWriteAccessMode: () => {
-    cy.get('#radiofield-oci-access-readwrite').check({ force: true })
+    cy.get(OCI_READ_WRITE_ACCESS).first().check({ force: true })
   },
 
   typeRegistryHostname: (hostname) => {
@@ -79,14 +85,11 @@ export const buildImagePage = {
   },
 
   enableAdvancedConfigurations: () => {
-    cy.get('body').then(($body) => {
-      const checkbox = $body.find('#use-advanced-configurations')
-      if (checkbox.length) {
-        cy.wrap(checkbox).check({ force: true })
-      } else {
-        clickLabel('Use advanced configurations')
-      }
-    })
+    cy.get(ADVANCED_CONFIG_CHECKBOX)
+      .first()
+      .scrollIntoView({ block: 'center' })
+      .should('be.visible')
+      .check({ force: true })
   },
 
   enableBasicAuthentication: () => {

@@ -16,6 +16,7 @@ const DEVICE_EVENTS_NORMAL = [
 
 /** Events list body on device details — Events tab */
 const EVENTS_CONTAINER = '[data-testid="device-events-list"]'
+const DEVICE_HEALTH_ALERT = '.pf-v6-c-alert'
 
 /** Device details → Applications table (id on 4.20; 4.22 also has the card + aria-label). */
 const DEVICE_APPLICATIONS_TABLE =
@@ -206,6 +207,13 @@ const addVmApplication = (index, app = {}) => {
 const enrolledDeviceRows = () =>
   cy.get('[data-testid="enrolled-devices-table"] tbody tr[data-testid^="enrolled-device-row-"]')
 
+const enrolledDeviceNameLinks = () =>
+  cy.get(
+    '[data-testid="enrolled-devices-table"] tbody [data-testid^="device-name-link-"], ' +
+    '[data-testid="enrolled-devices-table"] tbody [data-testid^="device-internal-name-link-"]',
+    { timeout: 120000 },
+  )
+
 /**
  * Closest ancestor of the enrolled table that also contains this list’s pagination (sibling of the
  * table in the DOM). Safer than `#devices-toolbar`.parent() when the console wraps the toolbar.
@@ -224,6 +232,36 @@ const waitEnrolledPaginationIdle = () => {
       expect($p.find('.pf-v6-c-spinner').length).to.eq(0)
     }, { timeout: 120000 })
 }
+
+const clickEnrolledDevicesPage = (buttonLabel) =>
+  enrolledDeviceNameLinks()
+    .first()
+    .invoke('attr', 'data-testid')
+    .then((previousFirstDevice) => {
+      cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView({ block: 'start' })
+      waitEnrolledPaginationIdle()
+      enrolledDevicesListSection().within(() => {
+        cy.get(`button[aria-label="${buttonLabel}"]`, { timeout: 120000 })
+          .first()
+          .should('not.be.disabled')
+          .click({ force: true })
+      })
+
+      return enrolledDeviceNameLinks()
+        .first()
+        .invoke('attr', 'data-testid')
+        .should('not.eq', previousFirstDevice)
+    })
+
+const clickEnrolledDevicesPreviousPage = () =>
+  enrolledDevicesListSection()
+    .find('button[aria-label="Go to previous page"]')
+    .first()
+    .then(($previous) => {
+      if (!$previous.is(':disabled')) {
+        return clickEnrolledDevicesPage('Go to previous page')
+      }
+    })
 
 const enrolledDeviceNameLinkSelector = (deviceRef) =>
   `[data-testid="device-name-link-${deviceRef}"], [data-testid="device-internal-name-link-${deviceRef}"]`
@@ -377,7 +415,6 @@ export const devicesPage = {
 
   checkDeviceOutOfDate: (deviceName = 'test-device-edited2') => {
     common.navigateTo('Devices')
-    enrolledDeviceLinkByAlias(deviceName)
 
     const intervalMs = 5000
     const totalMs = 120000
@@ -388,13 +425,20 @@ export const devicesPage = {
         cy.wait(intervalMs)
       }
       enrolledDeviceRowByAlias(deviceName)
+        .scrollIntoView({ block: 'center' })
         .then(($tr) => {
           const found = $tr.find('[data-testid^="device-update-status-"]').text().includes('Out-of-date')
           if (found) {
-            cy.wrap($tr)
+            // Re-query after scrolling: PatternFly may rerender the row while the page settles.
+            enrolledDeviceRowByAlias(deviceName)
+              .scrollIntoView({ block: 'center' })
               .find('[data-testid^="device-update-status-"]')
               .contains('Out-of-date')
               .should('be.visible')
+            enrolledDeviceLinkByAlias(deviceName).click()
+            cy.get('[data-testid="device-details-title"]', { timeout: 30000 }).should('be.visible')
+            devicesPage.expectIssuesDetectedAlert()
+            devicesPage.clickStatusIssuesLink()
           } else if (attempt + 1 < maxAttempts) {
             pollForOutOfDate(attempt + 1)
           } else {
@@ -412,22 +456,43 @@ export const devicesPage = {
 
     enrolledDeviceRowByAlias(deviceName)
       .scrollIntoView({ block: 'center' })
-      .find('input[type="checkbox"]')
       .should('be.visible')
+      .invoke('attr', 'data-testid')
+      .then((rowTestId) => {
+        const enrolledCheckbox = `[data-testid="${rowTestId}"] input[type="checkbox"]`
+
+        // The text row can be replaced after scrolling; its test id remains stable.
+        cy.get(enrolledCheckbox, { timeout: 60000 })
+          .scrollIntoView({ block: 'center' })
+          .should('be.visible')
+          .click({ force: true })
+        cy.get(enrolledCheckbox, { timeout: 60000 }).should('be.checked')
+      })
+    cy.get('[data-testid="toolbar-decommission-devices"]', { timeout: 60000 })
+      .should('not.be.disabled')
       .click()
-    cy.get('[data-testid="toolbar-decommission-devices"]').should('be.visible')
-    cy.get('[data-testid="toolbar-decommission-devices"]').click()
     cy.get('[data-testid="modal-decommission-confirm"]').should('be.visible')
     cy.get('[data-testid="modal-decommission-confirm"]').click()
-    cy.get('[data-testid="decommissioned-devices-table"]').should('exist')
-    cy.get('[data-testid="decommissioned-devices-table"] thead input[type="checkbox"]')
-      .scrollIntoView({ block: 'center' })
-      .should('be.visible')
-      .click()
-    cy.get('[data-testid="toolbar-delete-forever"]').should('be.visible')
-    cy.get('[data-testid="toolbar-delete-forever"]').click()
-    cy.get('[data-testid="modal-delete-devices-confirm"]').should('be.visible')
-    cy.get('[data-testid="modal-delete-devices-confirm"]').click()
+    const decommissionedCheckbox = '[data-testid="decommissioned-devices-table"] thead input[type="checkbox"]'
+
+    const selectDecommissionedDevices = (attempt = 0) => {
+      cy.get(decommissionedCheckbox, { timeout: 60000 })
+        .scrollIntoView({ block: 'center' })
+        .should('be.visible')
+        .then(($checkbox) => {
+          if (!$checkbox.is(':checked')) cy.wrap($checkbox).click({ force: true })
+        })
+      cy.get('[data-testid="toolbar-delete-forever"]').then(($deleteButton) => {
+        if (!$deleteButton.is(':disabled')) return
+        if (attempt === 3) throw new Error('Could not select the decommissioned device')
+        cy.wait(250)
+        selectDecommissionedDevices(attempt + 1)
+      })
+    }
+
+    selectDecommissionedDevices()
+    cy.get('[data-testid="toolbar-delete-forever"]').should('be.visible').and('not.be.disabled').click()
+    cy.get('[data-testid="modal-delete-devices-confirm"]').should('be.visible').click()
     cy.get('[data-testid="show-decommissioned-devices-switch"]').closest('label').should('be.visible')
     cy.get('[data-testid="show-decommissioned-devices-switch"]').closest('label').click()
   },
@@ -534,20 +599,7 @@ export const devicesPage = {
   },
 
   /** “Devices” table pagination only (scoped to enrolled list; waits out API refresh disabling controls). */
-  clickEnrolledDevicesNextPage: () => {
-    cy.get('[data-testid="enrolled-devices-table"]', { timeout: 60000 }).should('exist')
-    cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView({ block: 'start' })
-    enrolledDeviceRows().should('have.length.at.least', 1)
-    enrolledDeviceRows().last().scrollIntoView({ block: 'end' })
-    waitEnrolledPaginationIdle()
-    enrolledDevicesListSection().within(() => {
-      cy.get('button[aria-label="Go to next page"]', { timeout: 120000 })
-        .first()
-        .scrollIntoView({ block: 'center', inline: 'center' })
-        .should('not.be.disabled')
-        .click({ force: true })
-    })
-  },
+  clickEnrolledDevicesNextPage: () => clickEnrolledDevicesPage('Go to next page'),
 
   /**
    * Return to page 1 of the enrolled-devices paginator. Compact PatternFly often omits “Go to first page”,
@@ -555,22 +607,9 @@ export const devicesPage = {
    */
   goToFirstEnrolledDevicesPage: () => {
     cy.get('[data-testid="enrolled-devices-table"]', { timeout: 60000 }).should('exist')
-    cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView({ block: 'start' })
-    enrolledDeviceRows().last().scrollIntoView({ block: 'end' })
-    waitEnrolledPaginationIdle()
     cy.wrap(Array.from({ length: 12 })).each(() => {
-      waitEnrolledPaginationIdle()
-      enrolledDevicesListSection().within(() => {
-        cy.get('button[aria-label="Go to previous page"]', { timeout: 120000 })
-          .first()
-          .then(($prev) => {
-            if (!$prev.is(':disabled')) {
-              cy.wrap($prev).scrollIntoView({ block: 'center' }).click({ force: true })
-            }
-          })
-      })
+      return clickEnrolledDevicesPreviousPage()
     })
-    waitEnrolledPaginationIdle()
     enrolledDevicesListSection().within(() => {
       cy.get('button[aria-label="Go to previous page"]', { timeout: 120000 })
         .first()
@@ -586,10 +625,17 @@ export const devicesPage = {
   },
 
   decommissionDeviceAtEnrolledRow: (rowIndex = 0) => {
-    cy.get(`[data-testid="enrolled-device-row-${rowIndex}"]`)
-      .find(`[data-testid^="device-row-actions-"] .pf-v6-c-menu-toggle`)
+    const rowSelector = `[data-testid="enrolled-device-row-${rowIndex}"]`
+    const actionToggle = `${rowSelector} [data-testid^="device-row-actions-"] button`
+
+    cy.get(rowSelector).scrollIntoView({ block: 'center' })
+    cy.get(actionToggle)
+      .should('be.visible')
       .click()
-    cy.contains('[role="menuitem"]', 'Decommission device').click()
+    cy.get(actionToggle).should('have.attr', 'aria-expanded', 'true')
+    cy.contains('[role="menuitem"]', 'Decommission device', { timeout: 15000 })
+      .filter(':visible')
+      .click()
     cy.get('.pf-v6-c-modal-box').within(() => {
       cy.contains('button.pf-m-danger', 'Decommission device').click()
     })
@@ -672,6 +718,32 @@ export const devicesPage = {
 
   expectDeviceDetailsFleetDisconnected: () => {
     deviceDetailsFleetRow(120000).should('contain', 'None')
+  },
+
+  expectIssuesDetectedAlert: (statusCount) => {
+    const statusIssuePattern = statusCount === undefined
+      ? /\d+ status issue/
+      : new RegExp(String(statusCount) + ' status issue')
+    cy.contains(DEVICE_HEALTH_ALERT, 'Issues detected', { timeout: 30000 })
+      .scrollIntoView({ block: 'center' })
+      .should('be.visible')
+    cy.contains(DEVICE_HEALTH_ALERT, 'Issues detected', { timeout: 30000 })
+      .contains('button', statusIssuePattern)
+      .scrollIntoView({ block: 'center' })
+      .should('be.visible')
+  },
+
+  clickStatusIssuesLink: (statusCount) => {
+    const statusIssuePattern = statusCount === undefined
+      ? /\d+ status issue/
+      : new RegExp(String(statusCount) + ' status issue')
+    cy.contains(DEVICE_HEALTH_ALERT, 'Issues detected', { timeout: 30000 })
+      .scrollIntoView({ block: 'center' })
+    cy.contains(DEVICE_HEALTH_ALERT, 'Issues detected', { timeout: 30000 })
+      .contains('button', statusIssuePattern)
+      .scrollIntoView({ block: 'center' })
+      .click()
+    cy.get('#device-status-card').should('be.visible')
   },
 
   removeFleetLabelOnDeviceDetails: (labelText = SCALE_FLEET_LABEL_TEXT) => {

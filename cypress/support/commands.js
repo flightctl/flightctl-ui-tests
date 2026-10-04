@@ -67,9 +67,11 @@ const tryCloseOnboardingModal = (attempt = 1, maxRetries = 15, retryDelay = 2000
  */
 Cypress.Commands.add('selectFleetManagementPerspective', () => {
   cy.get('[data-test-id="perspective-switcher-toggle"]', { timeout: 30000 })
+    .filter(':visible')
     .should('be.visible')
     .click()
   cy.get('[data-test-id="perspective-switcher-menu-option"]')
+    .filter(':visible')
     .contains('Fleet management')
     .should('be.visible')
     .click()

@@ -19,6 +19,16 @@ export const deviceDetailsFleetRow = (timeout = 60000) => {
   return cy.contains(termOrLegacyLabel, /^(Fleet name|Fleet)$/, { timeout }).closest(row)
 }
 
+/**
+ * EDM-4051 changed the manual OS form value from `osSpec` to `osSpec.image`
+ * when catalog references were introduced. Keep the legacy selector for the
+ * older UI variants exercised by this suite.
+ */
+export const systemImageInput = (timeout = 15000) =>
+  cy
+    .get('[data-testid="textfield-osSpec.image"], [data-testid="textfield-osSpec"]', { timeout })
+    .first()
+
 /** True after org selection was handled or confirmed absent — only run once per spec (first navigateTo). */
 let organizationSelectionHandled = false
 

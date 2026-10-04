@@ -1,4 +1,4 @@
-import { common, deviceDetailsFleetRow } from './common'
+import { common, deviceDetailsFleetRow, systemImageInput } from './common'
 
 /** Default table row index for flows that assume a single primary device row */
 const ROW_0 = 0
@@ -91,9 +91,31 @@ const VM_APP_DEFAULTS = {
   guestPort: '22',
 }
 
-const vmAppFieldId = (index, field) => `textfield-applications[${index}].${field}`
-const vmAppSwitchId = (index, field) => `switchfield-applications[${index}].${field}`
-const vmAppSelectMenuId = (index, field) => `selectfield-applications[${index}].${field}-menu`
+/**
+ * EDM-4051 wraps manually configured workload values in `applications[n].app`.
+ * Match that current structure first while preserving the pre-catalog form ids
+ * needed by the older UI variants this suite still supports.
+ */
+const vmAppFieldSelector = (index, field) =>
+  [
+    `[id="textfield-applications[${index}].app.${field}"]`,
+    `[id="textfield-applications[${index}].${field}"]`,
+  ].join(', ')
+const vmAppSwitchSelector = (index, field) =>
+  [
+    `[id="switchfield-applications[${index}].app.${field}"]`,
+    `[id="switchfield-applications[${index}].${field}"]`,
+  ].join(', ')
+const vmAppSelectMenuSelector = (index, field) =>
+  [
+    `[id="selectfield-applications[${index}].app.${field}-menu"]`,
+    `[id="selectfield-applications[${index}].${field}-menu"]`,
+  ].join(', ')
+const vmAppYamlModeSelector = (index) =>
+  [
+    `[id="applications[${index}].app-yaml-mode"]`,
+    `[id="applications[${index}]-yaml-mode"]`,
+  ].join(', ')
 
 const cdp = (command, params = {}) =>
   Cypress.automation('remote:debugger:protocol', { command, params })
@@ -158,38 +180,40 @@ const pasteYamlIntoMonaco = (content) => {
 
 const addVmApplication = (index, app = {}) => {
   const vmApp = { ...VM_APP_DEFAULTS, ...app }
-  const fieldId = (field) => vmAppFieldId(index, field)
-  const typeMenu = `[id="${vmAppSelectMenuId(index, 'appType')}"]`
+  const fieldSelector = (field) => vmAppFieldSelector(index, field)
+  const typeMenu = vmAppSelectMenuSelector(index, 'appType')
+  const yamlMode = vmAppYamlModeSelector(index)
 
   cy.get('body').then(($body) => {
     if ($body.find(typeMenu).length === 0) {
-      cy.contains('button', 'Add application').scrollIntoView().click({ force: true })
+      cy.contains('button', /^Add application( manually)?$/).scrollIntoView().click({ force: true })
     }
   })
-  cy.get(typeMenu, { timeout: 15000 }).scrollIntoView({ block: 'center' }).click({ force: true })
+  cy.get(typeMenu, { timeout: 15000 }).first().scrollIntoView({ block: 'center' }).click({ force: true })
   cy.contains('[role="option"]', 'Virtual machine (KVM)').click()
-  cy.get(`[id="${fieldId('name')}"]`).scrollIntoView({ block: 'center' }).clear({ force: true }).type(vmApp.name, { force: true })
+  cy.get(fieldSelector('name')).first().scrollIntoView({ block: 'center' }).clear({ force: true }).type(vmApp.name, { force: true })
 
   if (vmApp.mode === 'yaml') {
-    cy.get(`[id="applications[${index}]-yaml-mode"]`).click({ force: true })
+    cy.get(yamlMode).first().click({ force: true })
     cy.readFile(vmApp.yaml).then((yaml) => {
       const content = yaml.replace(/(metadata:\s*\n\s*name:\s*).+/, `$1${vmApp.name}`)
       pasteYamlIntoMonaco(content)
     })
   } else {
-    cy.get(`[id="${fieldId('diskImage')}"]`).clear({ force: true }).type(vmApp.diskImage, { force: true })
-    cy.get(`[id="${fieldId('memory')}"]`).clear({ force: true }).type(vmApp.memory, { force: true })
-    cy.get(`[id="${vmAppSwitchId(index, 'enablePassword')}"]`).click({ force: true })
-    cy.get(`[id="${fieldId('password')}"]`).clear({ force: true }).type(vmApp.password, { force: true, log: false })
+    cy.get(fieldSelector('diskImage')).first().clear({ force: true }).type(vmApp.diskImage, { force: true })
+    cy.get(fieldSelector('memory')).first().clear({ force: true }).type(vmApp.memory, { force: true })
+    cy.get(vmAppSwitchSelector(index, 'enablePassword')).first().click({ force: true })
+    cy.get(fieldSelector('password')).first().clear({ force: true }).type(vmApp.password, { force: true, log: false })
   }
 
   if (vmApp.hostPort && vmApp.guestPort) {
     const appSectionAnchor =
       vmApp.mode === 'yaml'
-        ? `[id="applications[${index}]-yaml-mode"]`
-        : `[id="${fieldId('name')}"]`
+        ? yamlMode
+        : fieldSelector('name')
     cy.get(appSectionAnchor)
-      .closest('.pf-v6-c-expandable-section, .pf-c-expandable-section')
+      .first()
+      .closest('.pf-v6-c-card, .pf-v6-c-expandable-section, .pf-c-expandable-section')
       .scrollIntoView({ block: 'center' })
       .within(() => {
         cy.contains('Map ports from inside the VM to the host device')
@@ -403,10 +427,8 @@ export const devicesPage = {
     cy.get('[data-testid="rich-validation-field-deviceAlias"]').clear()
     cy.get('[data-testid="rich-validation-field-deviceAlias"]').type(newName)
     cy.get('[data-testid="wizard-next-button"]').click()
-    cy.get('[data-testid="textfield-osSpec"]').should('be.visible')
-    cy.get('[data-testid="textfield-osSpec"]').clear()
-    cy.get('[data-testid="textfield-osSpec"]').type(image)
-    cy.get('[data-testid="textfield-osSpec"]').should('have.value', image)
+    systemImageInput().should('be.visible').clear().type(image)
+    systemImageInput().should('have.value', image)
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="wizard-save-button"]').click()

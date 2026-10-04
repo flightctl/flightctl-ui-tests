@@ -29,7 +29,6 @@ const CVE_DETAILS_DRAWER =
 const CARD = '.pf-v6-c-card'
 const CARD_TITLE = '.pf-v6-c-card__title-text'
 const MENU_ITEM = '.pf-v6-c-menu li'
-const CHIP_GROUP_CLOSE = '.pf-v6-c-chip-group__close button'
 const EXPANDABLE_ROW = '.pf-v6-c-table__expandable-row'
 
 /** Close button for CVE details */
@@ -354,20 +353,14 @@ export const securityPage = {
 
   /**
    * Filter the CVE table by a severity display label, assert the expected row count,
-   * then clear the filter by deselecting the same option.
+   * then deselect the same option and restore the unfiltered table before returning.
    * Use the UI display label: 'Critical', 'Important' (High), 'Moderate' (Medium), 'Low'.
+
    * @param {string} severityDisplayLabel - Label as shown in the filter dropdown
    * @param {number} expectedCount - Expected number of table rows after filtering
+   * @param {number} unfilteredCount - Expected number of table rows after this filter is removed
    */
-  expectFilteredRowCount(severityDisplayLabel, expectedCount) {
-    // Wait for the table to have at least 1 visible row before applying a filter.
-    // Guards against the 10s useFetchPeriodically refetch that sets isUpdating=true and
-    // temporarily replaces rows with a spinner, causing a 0-row false negative on filter apply.
-    cy.get(VULNERABILITIES_TABLE, { timeout: 30000 }).should(($table) => {
-      const rows = $table.find(`tbody tr:not(${EXPANDABLE_ROW}) td[data-label]`).closest('tr')
-      expect(rows.length, 'Table should have rows before filtering').to.be.gt(0)
-    })
-
+  expectFilteredRowCount(severityDisplayLabel, expectedCount, unfilteredCount) {
     // Open the FilterSelect dropdown. The MenuToggle's onClick fires toggleExpand (React state).
     // Do NOT use force:true — React 17+ delegates events via the root; forced synthetic events
     // bypass pointer-events checks but can miss React's root-level event listener in headless CI.
@@ -388,20 +381,12 @@ export const securityPage = {
     })
     cy.get(SEVERITY_FILTER_TOGGLE).should('have.attr', 'aria-expanded', 'false')
 
-    if (expectedCount === 0) {
-      // 0 results: Table.tsx replaces the table with an EmptyState — no <table> element.
-      cy.get(VULNERABILITIES_TABLE, { timeout: 30000 }).should('not.exist')
-    } else {
-      // When a filter is active, Table.tsx renders a Spinner (no <table> element) while loading,
-      // then the table. Wait up to 30s for the table to have the expected non-empty tbody count.
-      cy.get(VULNERABILITIES_TABLE, { timeout: 30000 }).should('exist')
-      cy.get(VULNERABILITIES_TABLE, { timeout: 30000 }).should(($table) => {
-        const cveRows = $table.find(`tbody tr:not(${EXPANDABLE_ROW}) td[data-label]`).closest('tr')
-        expect(cveRows.length, `Expected ${expectedCount} filtered CVE rows`).to.equal(expectedCount)
-      })
-    }
+    // Wait for the semantic result of the new selection, not merely for a table element.
+    // During the PF6 refresh the old table can still exist briefly, then disappear for a spinner.
+    this.expectTableRowCount(expectedCount, 30000)
 
-    // Deselect the filter (toggle it off), then wait for the table to settle before returning.
+    // This test selected the option above, so toggle that exact option back off. This avoids
+    // relying on optional clear-all controls or PatternFly's internal badge markup.
     cy.get(SEVERITY_FILTER_TOGGLE).should('be.visible').click()
     cy.get(SEVERITY_FILTER_TOGGLE).should('have.attr', 'aria-expanded', 'true')
     cy.contains(MENU_ITEM, severityDisplayLabel).should('be.visible').click()
@@ -411,22 +396,7 @@ export const securityPage = {
       }
     })
     cy.get(SEVERITY_FILTER_TOGGLE).should('have.attr', 'aria-expanded', 'false')
-    // Wait for table to reappear with unfiltered rows before proceeding to the next filter call.
-    cy.get(VULNERABILITIES_TABLE, { timeout: 15000 }).should('exist')
-  },
-
-  /**
-   * Clear all filters
-   */
-  clearFilters() {
-    // Look for clear filters button or chip group clear
-    cy.get('body').then(($body) => {
-      if ($body.find('button:contains("Clear all filters")').length > 0) {
-        cy.contains('button', 'Clear all filters').click()
-      } else if ($body.find(CHIP_GROUP_CLOSE).length > 0) {
-        cy.get(CHIP_GROUP_CLOSE).click()
-      }
-    })
+    this.expectTableRowCount(unfilteredCount, 30000)
   },
 
   /**
@@ -459,17 +429,21 @@ export const securityPage = {
    * @param {number} expectedCount
    */
   expectTableRowCount(expectedCount, timeout = 15000) {
-    if (expectedCount === 0) {
-      // When filter is active + 0 results, Table.tsx renders EmptyState (no table element).
-      cy.get(VULNERABILITIES_TABLE, { timeout }).should('not.exist')
-    } else {
-      // Keep the table lookup and row assertion in one retry chain. A search/filter update
-      // briefly renders an empty table, and a second default-timeout query flakes after 4 s.
-      cy.get(VULNERABILITIES_TABLE, { timeout }).should(($table) => {
-        const cveRows = $table.find(`tbody tr:not(${EXPANDABLE_ROW}) td[data-label]`).closest('tr')
-        expect(cveRows.length, `Expected ${expectedCount} CVE rows`).to.equal(expectedCount)
-      })
-    }
+    // Query from <body> on every retry. The PF6 table is removed for its loading spinner, so
+    // keeping an earlier table element as the Cypress subject can assert stale rows.
+    cy.get('body', { timeout }).should(($body) => {
+      const table = $body.find(VULNERABILITIES_TABLE)
+      if (expectedCount === 0) {
+        const emptyState = $body.find(NO_VULNERABILITIES_EMPTY_STATE).filter(':visible')
+        expect(table.length, 'Table should be replaced by the empty state').to.equal(0)
+        expect(emptyState.length, 'Visible empty state should confirm filtering completed').to.be.gt(0)
+        return
+      }
+      const cveRows = table
+        .find(`tbody tr:not(${EXPANDABLE_ROW}) td[data-label]`)
+        .closest('tr')
+      expect(cveRows.length, `Expected ${expectedCount} CVE rows`).to.equal(expectedCount)
+    })
   },
 
   /**

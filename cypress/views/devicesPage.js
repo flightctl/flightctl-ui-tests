@@ -290,6 +290,9 @@ const clickEnrolledDevicesPreviousPage = () =>
 const enrolledDeviceNameLinkSelector = (deviceRef) =>
   `[data-testid="device-name-link-${deviceRef}"], [data-testid="device-internal-name-link-${deviceRef}"]`
 
+const closeDeviceLabelSelector = (labelText) =>
+  `button[aria-label="Close ${labelText}"]`
+
 /**
  * Open device details from the enrolled table; paginate when sort order leaves the device off page 1.
  */
@@ -461,6 +464,18 @@ export const devicesPage = {
             cy.get('[data-testid="device-details-title"]', { timeout: 30000 }).should('be.visible')
             devicesPage.expectIssuesDetectedAlert()
             devicesPage.clickStatusIssuesLink()
+            cy.contains('.pf-v6-c-card', 'System status', { timeout: 30000 })
+              .scrollIntoView({ block: 'center' })
+              .should('contain', 'Update status')
+              .and('contain', 'Out-of-date')
+            cy.contains('.pf-v6-c-card', 'Resource status', { timeout: 30000 })
+              .scrollIntoView({ block: 'center' })
+              .should('contain', 'CPU pressure')
+              .and('contain', 'Disk pressure')
+              .and('contain', 'Memory pressure')
+            cy.contains('.pf-v6-c-card', 'Configurations', { timeout: 30000 })
+              .scrollIntoView({ block: 'center' })
+              .should('contain', 'System image (running)')
           } else if (attempt + 1 < maxAttempts) {
             pollForOutOfDate(attempt + 1)
           } else {
@@ -708,25 +723,12 @@ export const devicesPage = {
 
     cy.get('@expectedFleetName').then((fleetName) => {
       const fleet = String(fleetName).trim()
-      const bindingLabel =
-        FLEET_DEVICE_SELECTOR_LABELS[fleet] || `fleet=${fleet}`
-      cy.get('body').then(($body) => {
-        const hasBindingLabel = [...$body.find('.pf-v6-c-label')].some((el) => {
-          const text = (el.textContent || '').trim().replace(/:/g, '=')
-          return text.includes(bindingLabel)
-        })
-        if (!hasBindingLabel) {
-          throw new Error(
-            `Device selector label "${bindingLabel}" not found on device (fleet: ${fleet}). ` +
-              'Check Fleet details → Device selector matches a label on this device.',
-          )
-        }
-        cy.wrap({ bindingLabel, fleet }).as('fleetLabelTest')
-      })
+      const bindingLabel = FLEET_DEVICE_SELECTOR_LABELS[fleet] || `fleet=${fleet}`
+      cy.get(closeDeviceLabelSelector(bindingLabel), { timeout: 30000 }).should('be.visible')
+      cy.wrap({ bindingLabel, fleet }).as('fleetLabelTest')
     })
 
     cy.get('@fleetLabelTest').then(({ bindingLabel, fleet }) => {
-      cy.contains('.pf-v6-c-label', bindingLabel).should('exist')
       devicesPage.removeFleetLabelOnDeviceDetails(bindingLabel)
       devicesPage.expectDeviceDetailsFleetDisconnected()
       devicesPage.addFleetLabelOnDeviceDetails(bindingLabel)
@@ -769,9 +771,7 @@ export const devicesPage = {
   },
 
   removeFleetLabelOnDeviceDetails: (labelText = SCALE_FLEET_LABEL_TEXT) => {
-    cy.contains('.pf-v6-c-label', labelText)
-      .find(`button[aria-label="Close ${labelText}"]`)
-      .click()
+    cy.get(closeDeviceLabelSelector(labelText)).should('be.visible').click()
   },
 
   addFleetLabelOnDeviceDetails: (labelText = SCALE_FLEET_LABEL_TEXT) => {

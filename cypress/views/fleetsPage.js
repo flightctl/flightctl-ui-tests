@@ -1,4 +1,4 @@
-import { common } from './common'
+import { common, systemImageInput } from './common'
 
 /** Fleet name validation: red error icon color when invalid */
 const VALIDATION_ERROR_ICON_COLOR = '#b1380b'
@@ -83,9 +83,8 @@ export const fleetsPage = {
     // createFleet historically submitted with an empty device selector.
     cy.get('[data-testid="rich-validation-field-name"]').blur()
     cy.get('[data-testid="wizard-next-button"]').should('not.be.disabled').click()
-    cy.get('[data-testid="textfield-osSpec"]').should('be.visible')
-    cy.get('[data-testid="textfield-osSpec"]').type(img)
-    cy.get('[data-testid="textfield-osSpec"]').should('have.value', img)
+    systemImageInput().should('be.visible').type(img)
+    systemImageInput().should('have.value', img)
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="wizard-save-button"]').click()
@@ -101,10 +100,8 @@ export const fleetsPage = {
     cy.contains('.pf-v6-c-menu__item-text', 'Edit fleet configurations').should('be.visible').click()
     cy.get('.pf-v6-c-form__label-text').first().should('contain', 'Fleet name')
     cy.get('[data-testid="wizard-next-button"]').click()
-    cy.get('[data-testid="textfield-osSpec"]').should('be.visible')
-    cy.get('[data-testid="textfield-osSpec"]').clear()
-    cy.get('[data-testid="textfield-osSpec"]').type(img1)
-    cy.get('[data-testid="textfield-osSpec"]').should('have.value', img1)
+    systemImageInput().should('be.visible').clear().type(img1)
+    systemImageInput().should('have.value', img1)
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="wizard-save-button"]').click()

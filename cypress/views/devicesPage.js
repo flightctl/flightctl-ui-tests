@@ -1,4 +1,4 @@
-import { common, deviceDetailsFleetRow } from './common'
+import { common, deviceDetailsFleetRow, systemImageInput } from './common'
 
 /** Default table row index for flows that assume a single primary device row */
 const ROW_0 = 0
@@ -16,6 +16,7 @@ const DEVICE_EVENTS_NORMAL = [
 
 /** Events list body on device details — Events tab */
 const EVENTS_CONTAINER = '[data-testid="device-events-list"]'
+const DEVICE_HEALTH_ALERT = '.pf-v6-c-alert'
 
 /** Device details → Applications table (id on 4.20; 4.22 also has the card + aria-label). */
 const DEVICE_APPLICATIONS_TABLE =
@@ -90,9 +91,31 @@ const VM_APP_DEFAULTS = {
   guestPort: '22',
 }
 
-const vmAppFieldId = (index, field) => `textfield-applications[${index}].${field}`
-const vmAppSwitchId = (index, field) => `switchfield-applications[${index}].${field}`
-const vmAppSelectMenuId = (index, field) => `selectfield-applications[${index}].${field}-menu`
+/**
+ * EDM-4051 wraps manually configured workload values in `applications[n].app`.
+ * Match that current structure first while preserving the pre-catalog form ids
+ * needed by the older UI variants this suite still supports.
+ */
+const vmAppFieldSelector = (index, field) =>
+  [
+    `[id="textfield-applications[${index}].app.${field}"]`,
+    `[id="textfield-applications[${index}].${field}"]`,
+  ].join(', ')
+const vmAppSwitchSelector = (index, field) =>
+  [
+    `[id="switchfield-applications[${index}].app.${field}"]`,
+    `[id="switchfield-applications[${index}].${field}"]`,
+  ].join(', ')
+const vmAppSelectMenuSelector = (index, field) =>
+  [
+    `[id="selectfield-applications[${index}].app.${field}-menu"]`,
+    `[id="selectfield-applications[${index}].${field}-menu"]`,
+  ].join(', ')
+const vmAppYamlModeSelector = (index) =>
+  [
+    `[id="applications[${index}].app-yaml-mode"]`,
+    `[id="applications[${index}]-yaml-mode"]`,
+  ].join(', ')
 
 const cdp = (command, params = {}) =>
   Cypress.automation('remote:debugger:protocol', { command, params })
@@ -157,38 +180,40 @@ const pasteYamlIntoMonaco = (content) => {
 
 const addVmApplication = (index, app = {}) => {
   const vmApp = { ...VM_APP_DEFAULTS, ...app }
-  const fieldId = (field) => vmAppFieldId(index, field)
-  const typeMenu = `[id="${vmAppSelectMenuId(index, 'appType')}"]`
+  const fieldSelector = (field) => vmAppFieldSelector(index, field)
+  const typeMenu = vmAppSelectMenuSelector(index, 'appType')
+  const yamlMode = vmAppYamlModeSelector(index)
 
   cy.get('body').then(($body) => {
     if ($body.find(typeMenu).length === 0) {
-      cy.contains('button', 'Add application').scrollIntoView().click({ force: true })
+      cy.contains('button', /^Add application( manually)?$/).scrollIntoView().click({ force: true })
     }
   })
-  cy.get(typeMenu, { timeout: 15000 }).scrollIntoView({ block: 'center' }).click({ force: true })
+  cy.get(typeMenu, { timeout: 15000 }).first().scrollIntoView({ block: 'center' }).click({ force: true })
   cy.contains('[role="option"]', 'Virtual machine (KVM)').click()
-  cy.get(`[id="${fieldId('name')}"]`).scrollIntoView({ block: 'center' }).clear({ force: true }).type(vmApp.name, { force: true })
+  cy.get(fieldSelector('name')).first().scrollIntoView({ block: 'center' }).clear({ force: true }).type(vmApp.name, { force: true })
 
   if (vmApp.mode === 'yaml') {
-    cy.get(`[id="applications[${index}]-yaml-mode"]`).click({ force: true })
+    cy.get(yamlMode).first().click({ force: true })
     cy.readFile(vmApp.yaml).then((yaml) => {
       const content = yaml.replace(/(metadata:\s*\n\s*name:\s*).+/, `$1${vmApp.name}`)
       pasteYamlIntoMonaco(content)
     })
   } else {
-    cy.get(`[id="${fieldId('diskImage')}"]`).clear({ force: true }).type(vmApp.diskImage, { force: true })
-    cy.get(`[id="${fieldId('memory')}"]`).clear({ force: true }).type(vmApp.memory, { force: true })
-    cy.get(`[id="${vmAppSwitchId(index, 'enablePassword')}"]`).click({ force: true })
-    cy.get(`[id="${fieldId('password')}"]`).clear({ force: true }).type(vmApp.password, { force: true, log: false })
+    cy.get(fieldSelector('diskImage')).first().clear({ force: true }).type(vmApp.diskImage, { force: true })
+    cy.get(fieldSelector('memory')).first().clear({ force: true }).type(vmApp.memory, { force: true })
+    cy.get(vmAppSwitchSelector(index, 'enablePassword')).first().click({ force: true })
+    cy.get(fieldSelector('password')).first().clear({ force: true }).type(vmApp.password, { force: true, log: false })
   }
 
   if (vmApp.hostPort && vmApp.guestPort) {
     const appSectionAnchor =
       vmApp.mode === 'yaml'
-        ? `[id="applications[${index}]-yaml-mode"]`
-        : `[id="${fieldId('name')}"]`
+        ? yamlMode
+        : fieldSelector('name')
     cy.get(appSectionAnchor)
-      .closest('.pf-v6-c-expandable-section, .pf-c-expandable-section')
+      .first()
+      .closest('.pf-v6-c-card, .pf-v6-c-expandable-section, .pf-c-expandable-section')
       .scrollIntoView({ block: 'center' })
       .within(() => {
         cy.contains('Map ports from inside the VM to the host device')
@@ -205,6 +230,13 @@ const addVmApplication = (index, app = {}) => {
 
 const enrolledDeviceRows = () =>
   cy.get('[data-testid="enrolled-devices-table"] tbody tr[data-testid^="enrolled-device-row-"]')
+
+const enrolledDeviceNameLinks = () =>
+  cy.get(
+    '[data-testid="enrolled-devices-table"] tbody [data-testid^="device-name-link-"], ' +
+    '[data-testid="enrolled-devices-table"] tbody [data-testid^="device-internal-name-link-"]',
+    { timeout: 120000 },
+  )
 
 /**
  * Closest ancestor of the enrolled table that also contains this list’s pagination (sibling of the
@@ -225,8 +257,41 @@ const waitEnrolledPaginationIdle = () => {
     }, { timeout: 120000 })
 }
 
+const clickEnrolledDevicesPage = (buttonLabel) =>
+  enrolledDeviceNameLinks()
+    .first()
+    .invoke('attr', 'data-testid')
+    .then((previousFirstDevice) => {
+      cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView({ block: 'start' })
+      waitEnrolledPaginationIdle()
+      enrolledDevicesListSection().within(() => {
+        cy.get(`button[aria-label="${buttonLabel}"]`, { timeout: 120000 })
+          .first()
+          .should('not.be.disabled')
+          .click({ force: true })
+      })
+
+      return enrolledDeviceNameLinks()
+        .first()
+        .invoke('attr', 'data-testid')
+        .should('not.eq', previousFirstDevice)
+    })
+
+const clickEnrolledDevicesPreviousPage = () =>
+  enrolledDevicesListSection()
+    .find('button[aria-label="Go to previous page"]')
+    .first()
+    .then(($previous) => {
+      if (!$previous.is(':disabled')) {
+        return clickEnrolledDevicesPage('Go to previous page')
+      }
+    })
+
 const enrolledDeviceNameLinkSelector = (deviceRef) =>
   `[data-testid="device-name-link-${deviceRef}"], [data-testid="device-internal-name-link-${deviceRef}"]`
+
+const closeDeviceLabelSelector = (labelText) =>
+  `button[aria-label="Close ${labelText}"]`
 
 /**
  * Open device details from the enrolled table; paginate when sort order leaves the device off page 1.
@@ -365,10 +430,8 @@ export const devicesPage = {
     cy.get('[data-testid="rich-validation-field-deviceAlias"]').clear()
     cy.get('[data-testid="rich-validation-field-deviceAlias"]').type(newName)
     cy.get('[data-testid="wizard-next-button"]').click()
-    cy.get('[data-testid="textfield-osSpec"]').should('be.visible')
-    cy.get('[data-testid="textfield-osSpec"]').clear()
-    cy.get('[data-testid="textfield-osSpec"]').type(image)
-    cy.get('[data-testid="textfield-osSpec"]').should('have.value', image)
+    systemImageInput().should('be.visible').clear().type(image)
+    systemImageInput().should('have.value', image)
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="wizard-next-button"]').click()
     cy.get('[data-testid="wizard-save-button"]').click()
@@ -377,7 +440,6 @@ export const devicesPage = {
 
   checkDeviceOutOfDate: (deviceName = 'test-device-edited2') => {
     common.navigateTo('Devices')
-    enrolledDeviceLinkByAlias(deviceName)
 
     const intervalMs = 5000
     const totalMs = 120000
@@ -388,13 +450,32 @@ export const devicesPage = {
         cy.wait(intervalMs)
       }
       enrolledDeviceRowByAlias(deviceName)
+        .scrollIntoView({ block: 'center' })
         .then(($tr) => {
           const found = $tr.find('[data-testid^="device-update-status-"]').text().includes('Out-of-date')
           if (found) {
-            cy.wrap($tr)
+            // Re-query after scrolling: PatternFly may rerender the row while the page settles.
+            enrolledDeviceRowByAlias(deviceName)
+              .scrollIntoView({ block: 'center' })
               .find('[data-testid^="device-update-status-"]')
               .contains('Out-of-date')
               .should('be.visible')
+            enrolledDeviceLinkByAlias(deviceName).click()
+            cy.get('[data-testid="device-details-title"]', { timeout: 30000 }).should('be.visible')
+            devicesPage.expectIssuesDetectedAlert()
+            devicesPage.clickStatusIssuesLink()
+            cy.contains('.pf-v6-c-card', 'System status', { timeout: 30000 })
+              .scrollIntoView({ block: 'center' })
+              .should('contain', 'Update status')
+              .and('contain', 'Out-of-date')
+            cy.contains('.pf-v6-c-card', 'Resource status', { timeout: 30000 })
+              .scrollIntoView({ block: 'center' })
+              .should('contain', 'CPU pressure')
+              .and('contain', 'Disk pressure')
+              .and('contain', 'Memory pressure')
+            cy.contains('.pf-v6-c-card', 'Configurations', { timeout: 30000 })
+              .scrollIntoView({ block: 'center' })
+              .should('contain', 'System image (running)')
           } else if (attempt + 1 < maxAttempts) {
             pollForOutOfDate(attempt + 1)
           } else {
@@ -412,22 +493,43 @@ export const devicesPage = {
 
     enrolledDeviceRowByAlias(deviceName)
       .scrollIntoView({ block: 'center' })
-      .find('input[type="checkbox"]')
       .should('be.visible')
+      .invoke('attr', 'data-testid')
+      .then((rowTestId) => {
+        const enrolledCheckbox = `[data-testid="${rowTestId}"] input[type="checkbox"]`
+
+        // The text row can be replaced after scrolling; its test id remains stable.
+        cy.get(enrolledCheckbox, { timeout: 60000 })
+          .scrollIntoView({ block: 'center' })
+          .should('be.visible')
+          .click({ force: true })
+        cy.get(enrolledCheckbox, { timeout: 60000 }).should('be.checked')
+      })
+    cy.get('[data-testid="toolbar-decommission-devices"]', { timeout: 60000 })
+      .should('not.be.disabled')
       .click()
-    cy.get('[data-testid="toolbar-decommission-devices"]').should('be.visible')
-    cy.get('[data-testid="toolbar-decommission-devices"]').click()
     cy.get('[data-testid="modal-decommission-confirm"]').should('be.visible')
     cy.get('[data-testid="modal-decommission-confirm"]').click()
-    cy.get('[data-testid="decommissioned-devices-table"]').should('exist')
-    cy.get('[data-testid="decommissioned-devices-table"] thead input[type="checkbox"]')
-      .scrollIntoView({ block: 'center' })
-      .should('be.visible')
-      .click()
-    cy.get('[data-testid="toolbar-delete-forever"]').should('be.visible')
-    cy.get('[data-testid="toolbar-delete-forever"]').click()
-    cy.get('[data-testid="modal-delete-devices-confirm"]').should('be.visible')
-    cy.get('[data-testid="modal-delete-devices-confirm"]').click()
+    const decommissionedCheckbox = '[data-testid="decommissioned-devices-table"] thead input[type="checkbox"]'
+
+    const selectDecommissionedDevices = (attempt = 0) => {
+      cy.get(decommissionedCheckbox, { timeout: 60000 })
+        .scrollIntoView({ block: 'center' })
+        .should('be.visible')
+        .then(($checkbox) => {
+          if (!$checkbox.is(':checked')) cy.wrap($checkbox).click({ force: true })
+        })
+      cy.get('[data-testid="toolbar-delete-forever"]').then(($deleteButton) => {
+        if (!$deleteButton.is(':disabled')) return
+        if (attempt === 3) throw new Error('Could not select the decommissioned device')
+        cy.wait(250)
+        selectDecommissionedDevices(attempt + 1)
+      })
+    }
+
+    selectDecommissionedDevices()
+    cy.get('[data-testid="toolbar-delete-forever"]').should('be.visible').and('not.be.disabled').click()
+    cy.get('[data-testid="modal-delete-devices-confirm"]').should('be.visible').click()
     cy.get('[data-testid="show-decommissioned-devices-switch"]').closest('label').should('be.visible')
     cy.get('[data-testid="show-decommissioned-devices-switch"]').closest('label').click()
   },
@@ -534,20 +636,7 @@ export const devicesPage = {
   },
 
   /** “Devices” table pagination only (scoped to enrolled list; waits out API refresh disabling controls). */
-  clickEnrolledDevicesNextPage: () => {
-    cy.get('[data-testid="enrolled-devices-table"]', { timeout: 60000 }).should('exist')
-    cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView({ block: 'start' })
-    enrolledDeviceRows().should('have.length.at.least', 1)
-    enrolledDeviceRows().last().scrollIntoView({ block: 'end' })
-    waitEnrolledPaginationIdle()
-    enrolledDevicesListSection().within(() => {
-      cy.get('button[aria-label="Go to next page"]', { timeout: 120000 })
-        .first()
-        .scrollIntoView({ block: 'center', inline: 'center' })
-        .should('not.be.disabled')
-        .click({ force: true })
-    })
-  },
+  clickEnrolledDevicesNextPage: () => clickEnrolledDevicesPage('Go to next page'),
 
   /**
    * Return to page 1 of the enrolled-devices paginator. Compact PatternFly often omits “Go to first page”,
@@ -555,22 +644,9 @@ export const devicesPage = {
    */
   goToFirstEnrolledDevicesPage: () => {
     cy.get('[data-testid="enrolled-devices-table"]', { timeout: 60000 }).should('exist')
-    cy.get('[data-testid="enrolled-devices-table"]').scrollIntoView({ block: 'start' })
-    enrolledDeviceRows().last().scrollIntoView({ block: 'end' })
-    waitEnrolledPaginationIdle()
     cy.wrap(Array.from({ length: 12 })).each(() => {
-      waitEnrolledPaginationIdle()
-      enrolledDevicesListSection().within(() => {
-        cy.get('button[aria-label="Go to previous page"]', { timeout: 120000 })
-          .first()
-          .then(($prev) => {
-            if (!$prev.is(':disabled')) {
-              cy.wrap($prev).scrollIntoView({ block: 'center' }).click({ force: true })
-            }
-          })
-      })
+      return clickEnrolledDevicesPreviousPage()
     })
-    waitEnrolledPaginationIdle()
     enrolledDevicesListSection().within(() => {
       cy.get('button[aria-label="Go to previous page"]', { timeout: 120000 })
         .first()
@@ -586,10 +662,17 @@ export const devicesPage = {
   },
 
   decommissionDeviceAtEnrolledRow: (rowIndex = 0) => {
-    cy.get(`[data-testid="enrolled-device-row-${rowIndex}"]`)
-      .find(`[data-testid^="device-row-actions-"] .pf-v6-c-menu-toggle`)
+    const rowSelector = `[data-testid="enrolled-device-row-${rowIndex}"]`
+    const actionToggle = `${rowSelector} [data-testid^="device-row-actions-"] button`
+
+    cy.get(rowSelector).scrollIntoView({ block: 'center' })
+    cy.get(actionToggle)
+      .should('be.visible')
       .click()
-    cy.contains('[role="menuitem"]', 'Decommission device').click()
+    cy.get(actionToggle).should('have.attr', 'aria-expanded', 'true')
+    cy.contains('[role="menuitem"]', 'Decommission device', { timeout: 15000 })
+      .filter(':visible')
+      .click()
     cy.get('.pf-v6-c-modal-box').within(() => {
       cy.contains('button.pf-m-danger', 'Decommission device').click()
     })
@@ -640,25 +723,12 @@ export const devicesPage = {
 
     cy.get('@expectedFleetName').then((fleetName) => {
       const fleet = String(fleetName).trim()
-      const bindingLabel =
-        FLEET_DEVICE_SELECTOR_LABELS[fleet] || `fleet=${fleet}`
-      cy.get('body').then(($body) => {
-        const hasBindingLabel = [...$body.find('.pf-v6-c-label')].some((el) => {
-          const text = (el.textContent || '').trim().replace(/:/g, '=')
-          return text.includes(bindingLabel)
-        })
-        if (!hasBindingLabel) {
-          throw new Error(
-            `Device selector label "${bindingLabel}" not found on device (fleet: ${fleet}). ` +
-              'Check Fleet details → Device selector matches a label on this device.',
-          )
-        }
-        cy.wrap({ bindingLabel, fleet }).as('fleetLabelTest')
-      })
+      const bindingLabel = FLEET_DEVICE_SELECTOR_LABELS[fleet] || `fleet=${fleet}`
+      cy.get(closeDeviceLabelSelector(bindingLabel), { timeout: 30000 }).should('be.visible')
+      cy.wrap({ bindingLabel, fleet }).as('fleetLabelTest')
     })
 
     cy.get('@fleetLabelTest').then(({ bindingLabel, fleet }) => {
-      cy.contains('.pf-v6-c-label', bindingLabel).should('exist')
       devicesPage.removeFleetLabelOnDeviceDetails(bindingLabel)
       devicesPage.expectDeviceDetailsFleetDisconnected()
       devicesPage.addFleetLabelOnDeviceDetails(bindingLabel)
@@ -674,10 +744,34 @@ export const devicesPage = {
     deviceDetailsFleetRow(120000).should('contain', 'None')
   },
 
-  removeFleetLabelOnDeviceDetails: (labelText = SCALE_FLEET_LABEL_TEXT) => {
-    cy.contains('.pf-v6-c-label', labelText)
-      .find(`button[aria-label="Close ${labelText}"]`)
+  expectIssuesDetectedAlert: (statusCount) => {
+    const statusIssuePattern = statusCount === undefined
+      ? /\d+ status issue/
+      : new RegExp(String(statusCount) + ' status issue')
+    cy.contains(DEVICE_HEALTH_ALERT, 'Issues detected', { timeout: 30000 })
+      .scrollIntoView({ block: 'center' })
+      .should('be.visible')
+    cy.contains(DEVICE_HEALTH_ALERT, 'Issues detected', { timeout: 30000 })
+      .contains('button', statusIssuePattern)
+      .scrollIntoView({ block: 'center' })
+      .should('be.visible')
+  },
+
+  clickStatusIssuesLink: (statusCount) => {
+    const statusIssuePattern = statusCount === undefined
+      ? /\d+ status issue/
+      : new RegExp(String(statusCount) + ' status issue')
+    cy.contains(DEVICE_HEALTH_ALERT, 'Issues detected', { timeout: 30000 })
+      .scrollIntoView({ block: 'center' })
+    cy.contains(DEVICE_HEALTH_ALERT, 'Issues detected', { timeout: 30000 })
+      .contains('button', statusIssuePattern)
+      .scrollIntoView({ block: 'center' })
       .click()
+    cy.get('#device-status-card').should('be.visible')
+  },
+
+  removeFleetLabelOnDeviceDetails: (labelText = SCALE_FLEET_LABEL_TEXT) => {
+    cy.get(closeDeviceLabelSelector(labelText)).should('be.visible').click()
   },
 
   addFleetLabelOnDeviceDetails: (labelText = SCALE_FLEET_LABEL_TEXT) => {

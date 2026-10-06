@@ -5,9 +5,7 @@ import { common } from './common'
  * Used across Device, Fleet, and Overview pages.
  */
 
-/** Security overview card title */
-const SECURITY_OVERVIEW_CARD =
-  '.pf-v6-c-card__title-text:contains("Security overview")'
+const SECURITY_OVERVIEW_TOGGLE = 'button[aria-label="Toggle security details"]'
 
 /** Filter by severity dropdown button */
 const SEVERITY_FILTER_TOGGLE = 'button[aria-label="Filter by severity"]'
@@ -31,7 +29,6 @@ const CVE_DETAILS_DRAWER =
 const CARD = '.pf-v6-c-card'
 const CARD_TITLE = '.pf-v6-c-card__title-text'
 const MENU_ITEM = '.pf-v6-c-menu li'
-const CHIP_GROUP_CLOSE = '.pf-v6-c-chip-group__close button'
 const EXPANDABLE_ROW = '.pf-v6-c-table__expandable-row'
 
 /** Close button for CVE details */
@@ -79,6 +76,30 @@ export const CLEAN_IMAGE = {
 }
 
 export const securityPage = {
+  getSecurityOverviewCard(timeout = 30000) {
+    return cy.get(CARD, { timeout })
+      .filter((_, el) =>
+        Cypress.$(el).find(CARD_TITLE).text().includes('Security overview'),
+      )
+      .first()
+  },
+
+  /**
+   * Entity security cards are collapsed by default in the redesigned device/fleet page.
+   * The overview page has no toggle, so this is intentionally a no-op there.
+   */
+  ensureEntitySecurityOverviewExpanded(timeout = 30000) {
+    this.getSecurityOverviewCard(timeout).then(($card) => {
+      const toggle = $card.find(SECURITY_OVERVIEW_TOGGLE)
+      if (toggle.length) {
+        if (toggle.attr('aria-expanded') !== 'true') {
+          cy.wrap(toggle).click()
+        }
+        cy.wrap(toggle).should('have.attr', 'aria-expanded', 'true')
+      }
+    })
+  },
+
   /**
    * Verify the security overview card is visible
    * Scrolls to the security overview section if needed
@@ -90,36 +111,9 @@ export const securityPage = {
     // Pre-scroll the page to the bottom so the Security overview card (below the fold on ACM
     // pages) is in the rendered viewport before we query for .pf-v6-c-card elements.
     cy.scrollTo('bottom', { ensureScrollable: false })
-    cy.get('.pf-v6-c-card', { timeout: 30000 })
-      .should(($cards) => {
-        const card = $cards.filter((_, el) =>
-          Cypress.$(el).find('.pf-v6-c-card__title-text').text().includes('Security overview')
-        )
-        expect(card.length, 'Security overview card should exist').to.be.gt(0)
-        card[0].scrollIntoView({ behavior: 'instant', block: 'end' })
-        expect(Cypress.$(card[0]).is(':visible'), 'Security overview card should be visible').to.be.true
-      })
-  },
-
-  /**
-   * Expand EntitySecurityOverviewCard on Device/Fleet pages (collapsed by default in
-   * current flightctl-ui). Overview page has no toggle — this is a no-op there.
-   */
-  _expandSecurityCardIfNeeded(timeout = 15000) {
-    cy.scrollTo('bottom', { ensureScrollable: false })
-    cy.get(CARD, { timeout }).then(($cards) => {
-      const card = $cards.filter((_, el) =>
-        Cypress.$(el).find(CARD_TITLE).text().includes('Security overview'),
-      )
-      if (!card.length) {
-        return
-      }
-      const toggle = card.find('button[aria-label="Toggle security details"]')
-      if (toggle.length > 0 && toggle.attr('aria-expanded') !== 'true') {
-        cy.wrap(toggle).click()
-        cy.wait(500)
-      }
-    })
+    this.getSecurityOverviewCard()
+      .scrollIntoView({ behavior: 'instant', block: 'end' })
+      .should('be.visible')
   },
 
   /**
@@ -141,7 +135,7 @@ export const securityPage = {
    *   "0 CVEs" check at test start where no waiting is needed.
    */
   expectVulnerabilityCount(count, timeout = 90000) {
-    this._expandSecurityCardIfNeeded(Math.min(timeout, 30000))
+    this.ensureEntitySecurityOverviewExpanded(Math.min(timeout, 30000))
     if (count === 0) {
       // Everything (card search, scroll, text assertion) inside one .should() so Cypress
       // retries the whole block on every tick within `timeout`. If we chain .contains() off
@@ -222,44 +216,46 @@ export const securityPage = {
   },
 
   /**
-   * Verify severity breakdown counts.
-   *
-   * Only meaningful on the Overview page, which renders SecurityOverviewSummary with
-   * per-severity stat boxes (.fctl-security-overview-summary-box.{severity}).
-   * Device and Fleet pages show only the CVE table — there are no severity stat boxes
-   * there, so this function is a no-op on those pages.
-   *
-   * Exact counts are checked because the test controls which device has which digest
-   * via patchDeviceStatus, so the system-wide Overview totals reflect only the test device.
+   * Verify severity breakdown counts on the Overview and redesigned entity cards.
    *
    * @param {object} counts - Object with critical, high, medium, low counts
    */
   expectSeverityCounts(counts) {
-    this._expandSecurityCardIfNeeded()
-    cy.get(CARD).contains(CARD_TITLE, 'Security overview')
-      .parents(CARD)
-      .then(($card) => {
-        if (!$card.text().includes('Total active vulnerabilities')) {
-          // Device/Fleet page — no severity stat boxes, nothing to verify here.
-          cy.log('expectSeverityCounts: no severity summary on this page, skipping')
-          return
-        }
+    this.ensureEntitySecurityOverviewExpanded()
+    this.getSecurityOverviewCard().then(($card) => {
+      const isEntityCard = $card.find(SECURITY_OVERVIEW_TOGGLE).length > 0
 
-        // Overview page: each severity stat box contains the exact count and the display label.
-        // The test controls the digest via patchDeviceStatus so the counts match exactly.
-        // The UI maps API severity to Red Hat display names: High → "Important", Medium → "Moderate".
-        const checkBox = (cssClass, count, displayLabel) => {
-          if (count > 0) {
-            cy.get(`.fctl-security-overview-summary-box.${cssClass}`)
-              .should('contain.text', count.toString())
-              .and('contain.text', displayLabel)
-          }
+      // Keep the existing calls and validate both the Overview and redesigned
+      // device/fleet card variants.
+      const checkBox = (cssClass, count, displayLabel) => {
+        if (count > 0) {
+          const severityTile = $card.find(
+            `[aria-label="${displayLabel}"], ` +
+            `[aria-label="Filter table by ${displayLabel} severity"], ` +
+            `.fctl-security-overview-summary-box.${cssClass}`,
+          )
+          expect(severityTile.length, `${displayLabel} severity tile should exist`).to.be.gt(0)
+          cy.wrap(severityTile.first())
+            .scrollIntoView({ behavior: 'instant', block: 'center' })
+            .should('be.visible')
+            .within(() => {
+              cy.get('strong').should('have.text', String(count))
+              cy.contains(displayLabel).should('be.visible')
+            })
         }
-        checkBox('critical', counts.critical, 'Critical')
-        checkBox('high', counts.high, 'Important')
-        checkBox('medium', counts.medium, 'Moderate')
-        checkBox('low', counts.low, 'Low')
-      })
+      }
+
+      checkBox('critical', counts.critical, 'Critical')
+      checkBox('high', counts.high, 'Important')
+      checkBox('medium', counts.medium, 'Moderate')
+      checkBox('low', counts.low, 'Low')
+      if (isEntityCard) {
+        cy.wrap($card).find(SECURITY_OVERVIEW_TOGGLE + '[aria-expanded="true"]').should('exist')
+        cy.wrap($card).find('.fctl-security-overview-summary-box[role="button"]').should('exist')
+      } else {
+        cy.wrap($card).contains('Total active vulnerabilities').should('be.visible')
+      }
+    })
   },
 
   /**
@@ -357,20 +353,14 @@ export const securityPage = {
 
   /**
    * Filter the CVE table by a severity display label, assert the expected row count,
-   * then clear the filter by deselecting the same option.
+   * then deselect the same option and restore the unfiltered table before returning.
    * Use the UI display label: 'Critical', 'Important' (High), 'Moderate' (Medium), 'Low'.
+
    * @param {string} severityDisplayLabel - Label as shown in the filter dropdown
    * @param {number} expectedCount - Expected number of table rows after filtering
+   * @param {number} unfilteredCount - Expected number of table rows after this filter is removed
    */
-  expectFilteredRowCount(severityDisplayLabel, expectedCount) {
-    // Wait for the table to have at least 1 visible row before applying a filter.
-    // Guards against the 10s useFetchPeriodically refetch that sets isUpdating=true and
-    // temporarily replaces rows with a spinner, causing a 0-row false negative on filter apply.
-    cy.get(VULNERABILITIES_TABLE, { timeout: 30000 }).should(($table) => {
-      const rows = $table.find(`tbody tr:not(${EXPANDABLE_ROW}) td[data-label]`).closest('tr')
-      expect(rows.length, 'Table should have rows before filtering').to.be.gt(0)
-    })
-
+  expectFilteredRowCount(severityDisplayLabel, expectedCount, unfilteredCount) {
     // Open the FilterSelect dropdown. The MenuToggle's onClick fires toggleExpand (React state).
     // Do NOT use force:true — React 17+ delegates events via the root; forced synthetic events
     // bypass pointer-events checks but can miss React's root-level event listener in headless CI.
@@ -391,20 +381,12 @@ export const securityPage = {
     })
     cy.get(SEVERITY_FILTER_TOGGLE).should('have.attr', 'aria-expanded', 'false')
 
-    if (expectedCount === 0) {
-      // 0 results: Table.tsx replaces the table with an EmptyState — no <table> element.
-      cy.get(VULNERABILITIES_TABLE, { timeout: 30000 }).should('not.exist')
-    } else {
-      // When a filter is active, Table.tsx renders a Spinner (no <table> element) while loading,
-      // then the table. Wait up to 30s for the table to have the expected non-empty tbody count.
-      cy.get(VULNERABILITIES_TABLE, { timeout: 30000 }).should('exist')
-      cy.get(VULNERABILITIES_TABLE, { timeout: 30000 }).should(($table) => {
-        const cveRows = $table.find(`tbody tr:not(${EXPANDABLE_ROW}) td[data-label]`).closest('tr')
-        expect(cveRows.length, `Expected ${expectedCount} filtered CVE rows`).to.equal(expectedCount)
-      })
-    }
+    // Wait for the semantic result of the new selection, not merely for a table element.
+    // During the PF6 refresh the old table can still exist briefly, then disappear for a spinner.
+    this.expectTableRowCount(expectedCount, 30000)
 
-    // Deselect the filter (toggle it off), then wait for the table to settle before returning.
+    // This test selected the option above, so toggle that exact option back off. This avoids
+    // relying on optional clear-all controls or PatternFly's internal badge markup.
     cy.get(SEVERITY_FILTER_TOGGLE).should('be.visible').click()
     cy.get(SEVERITY_FILTER_TOGGLE).should('have.attr', 'aria-expanded', 'true')
     cy.contains(MENU_ITEM, severityDisplayLabel).should('be.visible').click()
@@ -414,22 +396,7 @@ export const securityPage = {
       }
     })
     cy.get(SEVERITY_FILTER_TOGGLE).should('have.attr', 'aria-expanded', 'false')
-    // Wait for table to reappear with unfiltered rows before proceeding to the next filter call.
-    cy.get(VULNERABILITIES_TABLE, { timeout: 15000 }).should('exist')
-  },
-
-  /**
-   * Clear all filters
-   */
-  clearFilters() {
-    // Look for clear filters button or chip group clear
-    cy.get('body').then(($body) => {
-      if ($body.find('button:contains("Clear all filters")').length > 0) {
-        cy.contains('button', 'Clear all filters').click()
-      } else if ($body.find(CHIP_GROUP_CLOSE).length > 0) {
-        cy.get(CHIP_GROUP_CLOSE).click()
-      }
-    })
+    this.expectTableRowCount(unfilteredCount, 30000)
   },
 
   /**
@@ -462,16 +429,21 @@ export const securityPage = {
    * @param {number} expectedCount
    */
   expectTableRowCount(expectedCount, timeout = 15000) {
-    if (expectedCount === 0) {
-      // When filter is active + 0 results, Table.tsx renders EmptyState (no table element).
-      cy.get(VULNERABILITIES_TABLE, { timeout }).should('not.exist')
-    } else {
-      cy.get(VULNERABILITIES_TABLE, { timeout }).should('exist')
-      cy.get(VULNERABILITIES_TABLE).should(($table) => {
-        const cveRows = $table.find(`tbody tr:not(${EXPANDABLE_ROW}) td[data-label]`).closest('tr')
-        expect(cveRows.length, `Expected ${expectedCount} CVE rows`).to.equal(expectedCount)
-      })
-    }
+    // Query from <body> on every retry. The PF6 table is removed for its loading spinner, so
+    // keeping an earlier table element as the Cypress subject can assert stale rows.
+    cy.get('body', { timeout }).should(($body) => {
+      const table = $body.find(VULNERABILITIES_TABLE)
+      if (expectedCount === 0) {
+        const emptyState = $body.find(NO_VULNERABILITIES_EMPTY_STATE).filter(':visible')
+        expect(table.length, 'Table should be replaced by the empty state').to.equal(0)
+        expect(emptyState.length, 'Visible empty state should confirm filtering completed').to.be.gt(0)
+        return
+      }
+      const cveRows = table
+        .find(`tbody tr:not(${EXPANDABLE_ROW}) td[data-label]`)
+        .closest('tr')
+      expect(cveRows.length, `Expected ${expectedCount} CVE rows`).to.equal(expectedCount)
+    })
   },
 
   /**
@@ -519,7 +491,9 @@ export const securityPage = {
    * @param {Function} opts.beforeReload - Optional Cypress command chain to run before reload (e.g. re-patch device status)
    */
   waitForVulnerabilityCountWithReload(count, { firstWaitMs = 60000, reloadWaitMs = 120000, beforeReload = null } = {}) {
-    this._expandSecurityCardIfNeeded()
+    this.ensureEntitySecurityOverviewExpanded()
+    // Helper: check whether the Security overview card currently shows the expected CVE count.
+    // Runs synchronously inside a Cypress .then() / .should() callback.
     const isCveCountVisible = ($cards) => {
       const card = $cards.filter((_, el) =>
         Cypress.$(el).find(CARD_TITLE).text().includes('Security overview'),

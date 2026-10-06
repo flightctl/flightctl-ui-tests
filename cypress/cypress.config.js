@@ -64,5 +64,9 @@ module.exports = defineConfig({
       process.env.CYPRESS_FLIGHTCTL_CALLBACK_PORT || process.env.FLIGHTCTL_CALLBACK_PORT || '18080',
       10,
     ),
+    // Full image reference served by the Quay vulnerability test backend.
+    // The hostname is deployment-specific and must be injected by CI.
+    quayVulnerabilityImage:
+      process.env.CYPRESS_QUAY_VULNERABILITY_IMAGE || process.env.QUAY_VULNERABILITY_IMAGE || '',
   },
 })

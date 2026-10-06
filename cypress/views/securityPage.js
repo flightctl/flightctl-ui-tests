@@ -299,18 +299,18 @@ export const securityPage = {
 
   /**
    * Verify the drawer shows the expected CVE ID, severity label, and scanner name.
-   * The drawer always shows "Trustify" as the hardcoded scanner name.
    * @param {string} cveId - CVE identifier shown as the drawer heading
    * @param {string} severityLabel - Display label ('Critical', 'Important', 'Moderate', 'Low')
+   * @param {string} sourceLabel - Displayed vulnerability source ('Trustify' or 'Quay')
    */
-  expectCveDrawerContent(cveId, severityLabel) {
+  expectCveDrawerContent(cveId, severityLabel, sourceLabel = 'Trustify') {
     // ACM mode keeps a persistent .pf-v6-c-drawer__panel in the DOM. Scope to the CVE details
     // panel specifically by requiring it to contain the drawer close button.
     cy.get(CVE_DETAILS_DRAWER).within(() => {
       cy.contains('h3', cveId).should('be.visible')
       cy.contains('Severity').should('be.visible')
       cy.contains(severityLabel).should('be.visible')
-      cy.contains('Trustify').should('be.visible')
+      cy.contains(sourceLabel).should('be.visible')
     })
   },
 

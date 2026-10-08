@@ -17,7 +17,8 @@
 ## Scope
 
 - Branch: `qe/edm-5295-catalog-inheritance-e2e`
-- Base: `c303b2a`
+- Base: `origin/main` (`99e5685`); the inherited EDM-3863/EDM-4051 commits
+  remain in the base history unchanged.
 - Product code, CI configuration, platform catalogs, organizations, and
   authentication configuration were not changed.
 - No push, pull request, Jira write, or Polarion write was performed.

@@ -6,11 +6,13 @@
   application catalog items, both with stable `1.0.0` and `1.1.0` versions.
 - Registered the tasks in the Cypress configuration.
 - Added fleet page-object helpers for catalog selection, pinned channel/version
-  assertions, Fleet → Catalog verification, and item-scoped updates.
-- Added two fleet scenarios covering catalog-backed fleet creation and
-  independent OS/application updates.
-- Cleanup deletes the fleet before its temporary catalog items and preserves
-  cleanup attempts when an earlier deletion step fails.
+  assertions, Fleet → Catalog verification, item-scoped updates, and Edit
+  Fleet navigation.
+- Added three fleet scenarios covering catalog-backed fleet creation,
+  independent OS/application updates, and editing a second fleet from a
+  manual OS to catalog-backed OS/application references.
+- Cleanup deletes both temporary fleets before their temporary catalog items
+  and preserves cleanup attempts when an earlier deletion step fails.
 
 ## Scope
 

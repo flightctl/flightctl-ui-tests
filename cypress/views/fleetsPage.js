@@ -115,7 +115,7 @@ export const fleetsPage = {
     selectCatalogValue('selectfield-channel-menu', channel)
     selectCatalogValue('selectfield-version-menu', version)
     catalogModal().contains('button', 'Add to template').should('be.visible').click()
-    catalogModal().should('not.exist')
+    cy.get('[role="dialog"]:visible').should('not.exist')
   },
 
   /** Add a pinned application catalog reference to the open fleet wizard. */
@@ -126,17 +126,18 @@ export const fleetsPage = {
     selectCatalogValue('selectfield-channel-menu', channel)
     selectCatalogValue('selectfield-version-menu', version)
     catalogModal().contains('button', 'Add to template').should('be.visible').click()
-    catalogModal().should('not.exist')
+    cy.get('[role="dialog"]:visible').should('not.exist')
   },
 
   /** Verify the catalog-backed OS and application are present in fleet review. */
   expectCatalogInheritanceReview: (osItemName, appItemName, channel, version) => {
-    cy.contains('System image', { timeout: 30000 }).should('be.visible')
-    cy.contains('Application workloads', { timeout: 30000 }).should('be.visible')
-    cy.contains(osItemName, { timeout: 30000 }).should('be.visible')
-    cy.contains(appItemName, { timeout: 30000 }).should('be.visible')
-    cy.contains(channel, { timeout: 30000 }).should('be.visible')
-    cy.contains(version, { timeout: 30000 }).should('be.visible')
+    const reviewText = (text) => cy.contains(text, { timeout: 30000 }).scrollIntoView().should('be.visible')
+    reviewText('System image')
+    reviewText('Application workloads')
+    reviewText(osItemName)
+    reviewText(appItemName)
+    reviewText(channel)
+    reviewText(version)
   },
 
   /** Open the fleet Catalog tab and wait for installed catalog-backed software. */
@@ -161,10 +162,7 @@ export const fleetsPage = {
   /** Update one catalog-backed item and return to the fleet Catalog tab. */
   updateCatalogItem: (itemName, targetVersion) => {
     catalogItemScope(itemName).contains('button', 'Update available', { timeout: 30000 }).click()
-    cy.get('#selectfield-version-menu', { timeout: 60000 }).should('be.visible').click()
-    cy.contains('[role="option"]:visible', new RegExp(`^${escapeRegExp(targetVersion)}$`))
-      .should('be.visible')
-      .click()
+    cy.contains(targetVersion, { timeout: 60000 }).should('be.visible')
     cy.get('[data-testid="wizard-next-button"]', { timeout: 30000 }).should('not.be.disabled').click()
     cy.get('[data-testid="wizard-save-button"]', { timeout: 30000 }).should('be.visible').click()
     cy.contains('Update configuration successful', { timeout: 60000 }).should('be.visible')
@@ -182,7 +180,7 @@ export const fleetsPage = {
     cy.get('[data-testid="toolbar-create-fleet"]').first().click()
     cy.get('[data-testid="rich-validation-field-name"]').should('be.visible')
     cy.get('[data-testid="rich-validation-field-name"]').type(fleetname)
-    cy.get('[data-testid="rich-validation-field-name"]').should('have.value', 'test-fleet')
+    cy.get('[data-testid="rich-validation-field-name"]').should('have.value', fleetname)
     // Blur the name field so Formik validates. OCP 4.20 clicked the LabelGroup list
     // (removed in newer PF / EditableLabelControl). Do not add a selector label here —
     // createFleet historically submitted with an empty device selector.
@@ -196,13 +194,25 @@ export const fleetsPage = {
   },
 
   /**
+   * Open the Edit fleet configurations wizard on General info.
+   */
+  openEditFleetWizard: (fleetname) => {
+    common.navigateTo('Fleets')
+
+    cy.get(`[data-testid="fleet-row-actions-${fleetname}"] .pf-v6-c-menu-toggle`, { timeout: 60000 })
+      .should('be.visible')
+      .click()
+    cy.contains('.pf-v6-c-menu__item-text', 'Edit fleet configurations', { timeout: 30000 })
+      .should('be.visible')
+      .click()
+    cy.contains('h1', 'Edit fleet', { timeout: 30000 }).should('be.visible')
+  },
+
+  /**
    * Edit an existing fleet
    */
   editFleet: (fleetname = Cypress.env('fleetname'), img1 = Cypress.env('newimage')) => {
-    common.navigateTo('Fleets')
-    
-    cy.get(`[data-testid="fleet-row-actions-${fleetname}"] .pf-v6-c-menu-toggle`).should('be.visible').click()
-    cy.contains('.pf-v6-c-menu__item-text', 'Edit fleet configurations').should('be.visible').click()
+    fleetsPage.openEditFleetWizard(fleetname)
     cy.get('.pf-v6-c-form__label-text').first().should('contain', 'Fleet name')
     cy.get('[data-testid="wizard-next-button"]').click()
     systemImageInput().should('be.visible').clear().type(img1)

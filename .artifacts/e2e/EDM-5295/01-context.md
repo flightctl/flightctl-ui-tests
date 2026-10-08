@@ -19,6 +19,7 @@
 - Create a fleet with catalog OS and application references pinned to `stable` / `1.0.0`.
 - Verify review and Fleet → Catalog display both references.
 - Verify per-item update availability and independently update OS and application to `1.1.0`.
+- Edit a second fleet from a manual OS to catalog-backed OS and application references, then verify the saved Fleet Catalog view.
 
 ## Constraints
 

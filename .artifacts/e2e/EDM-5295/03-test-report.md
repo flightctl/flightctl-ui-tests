@@ -11,14 +11,17 @@
 ## Remote validation
 
 The dedicated environment was prepared with the scoped Cypress workflow. Its
-stale enrollment requests were cleared and the three expected test aliases
-were observed before launching the browser.
+stale enrollment requests and mutable test resources were cleared, only
+`device5`/`test-device` and `device6`/`test-apps` were deleted and
+reprovisioned, and the exact two expected aliases were observed before
+launching the browser.
 
-The `fleet.cy.js` run did not reach the EDM-5295 suite. The existing
-top-level `cy.ensureLoggedIn()` hook failed while looking for the Fleet
-Management perspective switcher in the OpenShift console. Result: 0 passing,
-1 failing, and 9 skipped. This is an environment/setup blocker rather than a
-failure in the new catalog selectors or fixture tasks.
+The `fleet.cy.js` run targeted the deployed standalone FlightCtl UI route with
+standalone navigation. The final result was 11 passing, 0 failing, and 0
+skipped in 2m10s. The run included the EDM-5295 catalog fixture setup, fleet
+review assertions, independent OS/application catalog updates, and a
+second-fleet Edit Fleet workflow that replaced a manual OS and added a catalog
+application.
 
 The run was limited to `fleet.cy.js`; no full-suite run was performed. No
 Polarion write was performed because no Polarion connector or case-management

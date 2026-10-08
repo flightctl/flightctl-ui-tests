@@ -121,6 +121,7 @@ function fixtureNames() {
   const suffix = `${Date.now().toString(36)}-${process.pid}`
   return {
     fleetName: `edm-5295-fleet-${suffix}`,
+    editFleetName: `edm-5295-edit-fleet-${suffix}`,
     osItemName: `edm-5295-os-${suffix}`,
     appItemName: `edm-5295-app-${suffix}`,
   }
@@ -129,11 +130,10 @@ function fixtureNames() {
 async function catalogInheritanceSetup({ catalogName = DEFAULT_CATALOG_NAME } = {}) {
   const names = fixtureNames()
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flightctl-edm5295-'))
-  const manifestPath = path.join(tempDir, 'catalog-items.yaml')
   const osDisplayName = names.osItemName
   const appDisplayName = names.appItemName
 
-  const manifest = [
+  const manifests = [
     catalogItemManifest({
       catalogName,
       itemName: names.osItemName,
@@ -150,11 +150,14 @@ async function catalogInheritanceSetup({ catalogName = DEFAULT_CATALOG_NAME } = 
       type: 'container',
       artifactUri: 'quay.io/sdelacru/flightctl-centos',
     }),
-  ].join('\n')
+  ]
 
   try {
-    fs.writeFileSync(manifestPath, manifest)
-    runFlightctl(['apply', '-f', manifestPath])
+    manifests.forEach((manifest, index) => {
+      const manifestPath = path.join(tempDir, `catalog-item-${index}.yaml`)
+      fs.writeFileSync(manifestPath, manifest)
+      runFlightctl(['apply', '-f', manifestPath])
+    })
     await waitForCatalogItem(catalogName, names.osItemName)
     await waitForCatalogItem(catalogName, names.appItemName)
     return { catalogName, ...names, initialVersion: INITIAL_VERSION, updateVersion: UPDATE_VERSION, channel: CHANNEL }
@@ -166,21 +169,27 @@ async function catalogInheritanceSetup({ catalogName = DEFAULT_CATALOG_NAME } = 
   }
 }
 
-async function catalogInheritanceCleanup({ catalogName = DEFAULT_CATALOG_NAME, fleetName, osItemName, appItemName } = {}) {
+async function catalogInheritanceCleanup({
+  catalogName = DEFAULT_CATALOG_NAME,
+  fleetName,
+  editFleetName,
+  osItemName,
+  appItemName,
+} = {}) {
   let cleanupError
+  const fleetNames = [fleetName, editFleetName].filter(Boolean)
 
-  if (fleetName) {
+  for (const fleetToDelete of fleetNames) {
     try {
-      runFlightctl(['delete', 'fleet', fleetName])
+      runFlightctl(['delete', 'fleet', fleetToDelete])
     } catch (error) {
-      if (!isNotFound(error)) cleanupError = error
+      if (!isNotFound(error)) cleanupError ||= error
+      continue
     }
-    if (!cleanupError) {
-      try {
-        await waitForResourceGone('fleet', fleetName)
-      } catch (error) {
-        cleanupError = error
-      }
+    try {
+      await waitForResourceGone('fleet', fleetToDelete)
+    } catch (error) {
+      cleanupError ||= error
     }
   }
 
@@ -191,7 +200,7 @@ async function catalogInheritanceCleanup({ catalogName = DEFAULT_CATALOG_NAME, f
   }
 
   if (cleanupError) throw cleanupError
-  return { cleaned: true, catalogName, fleetName, osItemName, appItemName }
+  return { cleaned: true, catalogName, fleetName, editFleetName, osItemName, appItemName }
 }
 
 function registerCatalogTasks(on) {

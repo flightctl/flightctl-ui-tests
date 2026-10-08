@@ -123,5 +123,26 @@ describe('Fleet Management', () => {
       fleetsPage.expectCatalogItemState(fixture.osItemName, updateVersion, false)
       fleetsPage.expectCatalogItemState(fixture.appItemName, updateVersion, false)
     })
+
+    it('Should edit another fleet to use catalog OS and application references', () => {
+      fleetsPage.createFleet(`${Cypress.env('image')}`, fixture.editFleetName)
+      fleetsPage.openEditFleetWizard(fixture.editFleetName)
+      cy.get('[data-testid="wizard-next-button"]').should('not.be.disabled').click()
+      cy.contains('System image', { timeout: 30000 }).should('be.visible')
+      fleetsPage.addCatalogOs(fixture.osItemName, channel, initialVersion)
+      fleetsPage.addCatalogApplication(fixture.appItemName, channel, initialVersion)
+      cy.get('[data-testid="wizard-next-button"]').should('not.be.disabled').click()
+      cy.get('[data-testid="wizard-next-button"]').should('not.be.disabled').click()
+      fleetsPage.expectCatalogInheritanceReview(
+        fixture.osItemName,
+        fixture.appItemName,
+        channel,
+        initialVersion,
+      )
+      cy.get('[data-testid="wizard-save-button"]').should('be.visible').click()
+      fleetsPage.openFleetCatalogTab()
+      fleetsPage.expectCatalogItemState(fixture.osItemName, initialVersion, true)
+      fleetsPage.expectCatalogItemState(fixture.appItemName, initialVersion, true)
+    })
   })
 })

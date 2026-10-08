@@ -86,6 +86,46 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function readFlightctlApiConfig() {
+  const configPath = path.join(os.homedir(), '.config', 'flightctl', 'client.yaml')
+  const configContent = fs.readFileSync(configPath, 'utf8')
+  const { serverUrl, bearerToken, orgId } = parseFlightctlConfig(configContent)
+  if (!serverUrl || !bearerToken) {
+    throw new Error('Missing service.server or authentication.access-token in flightctl client config')
+  }
+  const parsedUrl = new URL(serverUrl)
+  return {
+    hostname: parsedUrl.hostname,
+    port: parseInt(parsedUrl.port || '443', 10),
+    bearerToken,
+    orgQuery: orgId ? `?org_id=${orgId}` : '',
+  }
+}
+
+function requestFlightctlApi(reqPath) {
+  const { hostname, port, bearerToken } = readFlightctlApiConfig()
+  const https = require('https')
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname,
+      port,
+      path: reqPath,
+      method: 'GET',
+      rejectUnauthorized: false,
+      headers: {
+        Authorization: `Bearer ${bearerToken}`,
+        'Content-Type': 'application/json',
+      },
+    }, (res) => {
+      let data = ''
+      res.on('data', (chunk) => { data += chunk })
+      res.on('end', () => resolve({ statusCode: res.statusCode, body: data }))
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
 /**
  * Runs `flightctl get devices` with a label selector and returns how many devices appear in JSON `items`.
  * Tries several flag combinations (`-l` / `--selector`) so minor CLI differences still parse correctly.
@@ -468,7 +508,11 @@ function registerScaleFleetSimulatorTasks(on) {
         return {
           statusCode: resp.statusCode,
           cveCount: items.length,
-          cves: items.map((v) => ({ cveId: v.cveId || v.metadata?.name, severity: v.severity })),
+          cves: items.map((v) => ({
+            cveId: v.cveId || v.metadata?.name,
+            severity: v.severity,
+            source: v.source || v.findings?.[0]?.source,
+          })),
           rawBody: resp.body.slice(0, 2000),
         }
       } catch (e) {
@@ -584,7 +628,11 @@ function registerScaleFleetSimulatorTasks(on) {
         return {
           statusCode: resp.statusCode,
           cveCount: items.length,
-          cves: items.map((v) => ({ cveId: v.cveId || v.metadata?.name, severity: v.severity })),
+          cves: items.map((v) => ({
+            cveId: v.cveId || v.metadata?.name,
+            severity: v.severity,
+            source: v.source,
+          })),
           rawBody: resp.body.slice(0, 2000),
         }
       } catch (e) {
@@ -600,7 +648,7 @@ function registerScaleFleetSimulatorTasks(on) {
      * Use this in Step 4 BEFORE asserting the UI so the test waits for the flightctl
      * periodic VulnerabilitySync to index the digest — the UI only shows what the backend has.
      */
-    async pollDeviceVulnerabilities({ deviceName, expectedCount = 1, timeoutMs = 600000, pollMs = 15000 }) {
+    async pollDeviceVulnerabilities({ deviceName, expectedCount = 1, exact = false, timeoutMs = 600000, pollMs = 15000 }) {
       const configPath = path.join(os.homedir(), '.config', 'flightctl', 'client.yaml')
       let configContent
       try {
@@ -645,7 +693,7 @@ function registerScaleFleetSimulatorTasks(on) {
         try {
           lastCount = await fetchCount()
           console.log(`[pollDeviceVulnerabilities] attempt ${attempt}: ${deviceName} has ${lastCount} CVEs (want >= ${expectedCount})`)
-          if (lastCount >= expectedCount) {
+          if ((exact && lastCount === expectedCount) || (!exact && lastCount >= expectedCount)) {
             return { success: true, cveCount: lastCount }
           }
         } catch (e) {
@@ -658,6 +706,75 @@ function registerScaleFleetSimulatorTasks(on) {
         }
       }
       return { success: false, cveCount: lastCount, reason: `Timed out after ${timeoutMs}ms — last cveCount=${lastCount}` }
+    },
+
+    /**
+     * Reads the configured vulnerability backend from the periodic service ConfigMap.
+     * CI may provide CYPRESS_VULNERABILITY_BACKEND when kubectl access is unavailable.
+     */
+    checkVulnerabilityBackend() {
+      if (process.env.CYPRESS_VULNERABILITY_BACKEND) {
+        return process.env.CYPRESS_VULNERABILITY_BACKEND
+      }
+      try {
+        for (const configMapName of ['flightctl-periodic-config', 'flightctl-periodic']) {
+          try {
+            const raw = execFileSync(
+              'kubectl',
+              ['get', 'configmap', configMapName, '-n', 'flightctl', '-o', 'jsonpath={.data.config\\.yaml}'],
+              { encoding: 'utf8', timeout: 15000 },
+            )
+            const match = raw.match(/vulnerabilityReporting:[\s\S]*?\n\s+backend:\s*["']?([a-zA-Z0-9_-]+)["']?/)
+            if (match) return match[1]
+          } catch (e) {
+            // Try the legacy ConfigMap name before reporting that the backend is unknown.
+          }
+        }
+      } catch (e) {
+        console.log(`[checkVulnerabilityBackend] Cannot read periodic ConfigMap: ${e.message}`)
+      }
+      return null
+    },
+
+    /**
+     * Fetches the estate-wide vulnerability summary through the same API used by the UI.
+     */
+    async getVulnerabilitySummary() {
+      try {
+        const { orgQuery } = readFlightctlApiConfig()
+        const resp = await requestFlightctlApi(`/api/v1/vulnerabilities/summary${orgQuery}`)
+        let parsed = null
+        try { parsed = JSON.parse(resp.body) } catch (_) {}
+        return {
+          statusCode: resp.statusCode,
+          cvesBySeverity: parsed && parsed.cvesBySeverity ? parsed.cvesBySeverity : null,
+          rawBody: resp.body.slice(0, 2000),
+        }
+      } catch (e) {
+        return { error: `HTTP request failed: ${e.message}` }
+      }
+    },
+
+    /**
+     * Fetches CVE impact data for an affected-device assertion.
+     */
+    async getVulnerabilityImpact({ cveId }) {
+      try {
+        const { orgQuery } = readFlightctlApiConfig()
+        const separator = orgQuery ? '&' : '?'
+        const resp = await requestFlightctlApi(
+          `/api/v1/vulnerabilities/cves/${encodeURIComponent(cveId)}/impact${orgQuery}${separator}limit=100`,
+        )
+        let parsed = null
+        try { parsed = JSON.parse(resp.body) } catch (_) {}
+        return {
+          statusCode: resp.statusCode,
+          items: parsed && parsed.items ? parsed.items : [],
+          rawBody: resp.body.slice(0, 4000),
+        }
+      } catch (e) {
+        return { error: `HTTP request failed: ${e.message}` }
+      }
     },
 
     /**

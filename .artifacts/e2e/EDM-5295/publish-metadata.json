@@ -1,0 +1,11 @@
+{
+  "repository": "flightctl/flightctl-ui-tests",
+  "base_branch": "main",
+  "head_repository": "dudyas6/flightctl-ui-tests",
+  "head_branch": "qe/edm-5295-catalog-inheritance-e2e",
+  "pr_number": 42,
+  "pr_url": "https://github.com/flightctl/flightctl-ui-tests/pull/42",
+  "draft": true,
+  "validation": "PASS",
+  "polarion_written": false
+}

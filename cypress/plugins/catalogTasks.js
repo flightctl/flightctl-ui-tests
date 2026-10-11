@@ -1,31 +1,12 @@
-const { execFileSync } = require('child_process')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { runFlightctl } = require('./flightctlCli')
 
 const DEFAULT_CATALOG_NAME = 'default'
 const CHANNEL = 'stable'
 const INITIAL_VERSION = '1.0.0'
 const UPDATE_VERSION = '1.1.0'
-
-function expandPath(value) {
-  if (!value) return value
-  return value.startsWith('~/') ? path.join(os.homedir(), value.slice(2)) : value
-}
-
-function getFlightctlBin() {
-  const configured = process.env.CYPRESS_FLIGHTCTL_BIN
-  if (configured) return expandPath(configured)
-  return path.join(os.homedir(), 'flightctl/bin/flightctl')
-}
-
-function runFlightctl(args) {
-  return execFileSync(getFlightctlBin(), args, {
-    encoding: 'utf8',
-    maxBuffer: 32 * 1024 * 1024,
-    timeout: 30000,
-  })
-}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -120,10 +101,10 @@ async function cleanupCatalogItems(catalogName, itemNames) {
 function fixtureNames() {
   const suffix = `${Date.now().toString(36)}-${process.pid}`
   return {
-    fleetName: `edm-5295-fleet-${suffix}`,
-    editFleetName: `edm-5295-edit-fleet-${suffix}`,
-    osItemName: `edm-5295-os-${suffix}`,
-    appItemName: `edm-5295-app-${suffix}`,
+    fleetName: `catalog-inheritance-fleet-${suffix}`,
+    editFleetName: `catalog-inheritance-edit-fleet-${suffix}`,
+    osItemName: `catalog-inheritance-os-${suffix}`,
+    appItemName: `catalog-inheritance-app-${suffix}`,
   }
 }
 

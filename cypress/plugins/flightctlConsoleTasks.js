@@ -12,6 +12,7 @@ const { execSync } = require('child_process')
 const path = require('path')
 const os = require('os')
 const fs = require('fs')
+const { getFlightctlBin } = require('./flightctlCli')
 
 function parseFlightctlClientConfig(configContent) {
   const lines = configContent.split('\n')
@@ -44,16 +45,6 @@ function parseFlightctlClientConfig(configContent) {
   const orgId = orgMatch ? orgMatch[1] : null
 
   return { serverUrl, bearerToken, orgId }
-}
-
-function getFlightctlBin() {
-  const fromEnv = process.env.CYPRESS_FLIGHTCTL_BIN
-  if (fromEnv) return fromEnv
-
-  const fromBuild = path.join(os.homedir(), 'flightctl', 'bin', 'flightctl')
-  if (fs.existsSync(fromBuild)) return fromBuild
-
-  return 'flightctl'
 }
 
 function getDeviceName(bin, alias) {
@@ -269,7 +260,7 @@ function registerFlightctlConsoleTasks(on) {
     },
 
     flightctlConsoleCommand({ commands, deviceAlias }) {
-      const bin = getFlightctlBin()
+      const bin = getFlightctlBin({ fallbackToPath: true })
       const deviceName = getDeviceName(bin, deviceAlias)
       if (!deviceName) {
         const hint = deviceAlias ? ` alias=${deviceAlias}` : ''

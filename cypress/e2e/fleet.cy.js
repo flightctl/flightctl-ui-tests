@@ -86,12 +86,6 @@ describe('Fleet Management', () => {
       cy.task('catalogInheritanceCleanup', fixture)
     })
 
-    afterEach(function () {
-      if (this.currentTest.state === 'failed') {
-        Cypress.runner.stop()
-      }
-    })
-
     it('Should create a fleet with pinned catalog OS and application references', () => {
       fleetsPage.openCreateFleetWizard()
       fleetsPage.proceedToDeviceTemplate(fixture.fleetName)

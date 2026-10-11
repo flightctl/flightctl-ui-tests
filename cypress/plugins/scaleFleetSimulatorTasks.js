@@ -2,6 +2,7 @@ const { spawn, execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
+const { expandPath, getFlightctlBin } = require('./flightctlCli')
 
 let simulatorProcess = null
 
@@ -47,26 +48,6 @@ function parseFlightctlConfig(configContent) {
   const orgId = orgMatch ? orgMatch[1] : null
 
   return { serverUrl, bearerToken, orgId }
-}
-
-/**
- * Turns a path that starts with `~/` into an absolute path using the current user's home directory.
- * Other paths are returned unchanged; falsy values are returned as-is.
- */
-function expandPath(p) {
-  if (!p) return p
-  if (p.startsWith('~/')) return path.join(os.homedir(), p.slice(2))
-  return p
-}
-
-/**
- * Resolves the `flightctl` CLI binary used to list devices during polls.
- * Uses `CYPRESS_FLIGHTCTL_BIN` when set, otherwise defaults to `~/flightctl/bin/flightctl`.
- */
-function getFlightctlBin() {
-  const fromEnv = process.env.CYPRESS_FLIGHTCTL_BIN
-  if (fromEnv) return expandPath(fromEnv)
-  return path.join(os.homedir(), 'flightctl/bin/flightctl')
 }
 
 /**

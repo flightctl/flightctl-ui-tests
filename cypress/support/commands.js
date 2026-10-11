@@ -110,10 +110,15 @@ Cypress.Commands.add('ensureLoggedIn', () => {
   const auth = Cypress.env('auth')
   const user = Cypress.env('username')
   const password = Cypress.env('password')
+  const localK8sAuth = Cypress.env('localK8sAuth')
   cy.session(
-    ['openshift-console', host, auth, user],
+    [localK8sAuth ? 'k8s' : 'openshift-console', host, auth, user],
     () => {
-      cy.login(host, auth, user, password)
+      if (localK8sAuth) {
+        cy.loginK8s(host)
+      } else {
+        cy.login(host, auth, user, password)
+      }
     }
   )
   cy.visit(host, { timeout: 60000, retryOnStatusCodeFailure: true })
@@ -123,6 +128,29 @@ Cypress.Commands.add('ensureLoggedIn', () => {
     cy.selectFleetManagementPerspective()
   }
   cy.url().should('include', host)
+})
+
+/**
+ * Kubernetes auth login used by local kind deployments. The UI accepts the
+ * service-account token through its same-origin login endpoint and sets the
+ * browser session cookie in the response.
+ */
+Cypress.Commands.add('loginK8s', (
+  url = `${Cypress.env('host')}`,
+  token = `${Cypress.env('k8sToken')}`,
+) => {
+  expect(token, 'CYPRESS_K8S_TOKEN must be set for local Kubernetes auth').to.not.be.empty
+  cy.request({
+    method: 'POST',
+    url: `${url.replace(/\/$/, '')}/api/login?provider=k8s`,
+    headers: { 'Content-Type': 'application/json' },
+    body: { token },
+    failOnStatusCode: false,
+  }).then((response) => {
+    expect(response.status, response.body).to.equal(200)
+  })
+  cy.visit(url, { timeout: 60000, retryOnStatusCodeFailure: true })
+  cy.get('[data-testid="nav-toggle"], #page-toggle-button', { timeout: 30000 }).should('exist')
 })
 
 Cypress.Commands.add('downloadClifile', (platform = `${Cypress.env('platform')}`, arch = `${Cypress.env('arch')}`) => {

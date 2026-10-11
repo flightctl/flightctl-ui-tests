@@ -57,6 +57,10 @@ module.exports = defineConfig({
     flightctlRepoWithWritePassword: process.env.FLIGHTCTL_REPO_WITH_WRITE_PASSWORD || '',
     resourcename: process.env.RESOURCENAME || 'base/fedora-bootc/deploy/fleet.yaml',
     useAcmNavigation: process.env.CYPRESS_USE_ACM_NAVIGATION !== 'false',
+    // Local kind deployments use the built-in Kubernetes token login instead of
+    // the OpenShift OAuth flow used by the shared CI environment.
+    localK8sAuth: process.env.CYPRESS_LOCAL_K8S_AUTH === 'true',
+    k8sToken: process.env.CYPRESS_K8S_TOKEN || '',
     // auth-provider-login.cy.js: full authorize URL from `flightctl login --web --no-browser` output
     flightctlOAuthAuthorizeUrl:
       process.env.CYPRESS_FLIGHTCTL_OAUTH_AUTHORIZE_URL || process.env.FLIGHTCTL_OAUTH_AUTHORIZE_URL || '',
@@ -64,5 +68,9 @@ module.exports = defineConfig({
       process.env.CYPRESS_FLIGHTCTL_CALLBACK_PORT || process.env.FLIGHTCTL_CALLBACK_PORT || '18080',
       10,
     ),
+    // Full image reference served by the Quay vulnerability test backend.
+    // The hostname is deployment-specific and must be injected by CI.
+    quayVulnerabilityImage:
+      process.env.CYPRESS_QUAY_VULNERABILITY_IMAGE || process.env.QUAY_VULNERABILITY_IMAGE || '',
   },
 })

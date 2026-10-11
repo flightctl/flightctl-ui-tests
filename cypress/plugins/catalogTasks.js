@@ -1,7 +1,7 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { runFlightctl } = require('./flightctlCli')
+const { runFlightctl } = require('./flightctlConsoleTasks')
 
 const DEFAULT_CATALOG_NAME = 'default'
 const CHANNEL = 'stable'

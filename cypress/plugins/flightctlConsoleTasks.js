@@ -8,11 +8,32 @@
  *     commands: ['logger -p user.info "test message"', 'whoami']
  *   })
  */
-const { execSync } = require('child_process')
+const { execFileSync, execSync } = require('child_process')
 const path = require('path')
 const os = require('os')
 const fs = require('fs')
-const { getFlightctlBin } = require('./flightctlCli')
+
+function expandPath(value) {
+  if (!value) return value
+  return value.startsWith('~/') ? path.join(os.homedir(), value.slice(2)) : value
+}
+
+function getFlightctlBin({ fallbackToPath = false } = {}) {
+  const configured = process.env.CYPRESS_FLIGHTCTL_BIN
+  if (configured) return expandPath(configured)
+
+  const builtBinary = path.join(os.homedir(), 'flightctl', 'bin', 'flightctl')
+  return fallbackToPath && !fs.existsSync(builtBinary) ? 'flightctl' : builtBinary
+}
+
+function runFlightctl(args, options = {}) {
+  return execFileSync(getFlightctlBin(), args, {
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+    timeout: 30000,
+    ...options,
+  })
+}
 
 function parseFlightctlClientConfig(configContent) {
   const lines = configContent.split('\n')
@@ -284,4 +305,4 @@ function registerFlightctlConsoleTasks(on) {
   })
 }
 
-module.exports = { registerFlightctlConsoleTasks }
+module.exports = { expandPath, getFlightctlBin, runFlightctl, registerFlightctlConsoleTasks }

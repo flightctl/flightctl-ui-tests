@@ -30,6 +30,15 @@ const CARD = '.pf-v6-c-card'
 const CARD_TITLE = '.pf-v6-c-card__title-text'
 const MENU_ITEM = '.pf-v6-c-menu li'
 const EXPANDABLE_ROW = '.pf-v6-c-table__expandable-row'
+const SECURITY_EMPTY_STATE = /No vulnerabilities detected|No vulnerabilities were found|No CVEs detected|No vulnerability data to display/i
+
+const isSecurityOverviewCard = (element) => {
+  const card = Cypress.$(element)
+  const title = card.find(CARD_TITLE).text()
+  return title.includes('Security overview') ||
+    card.find(SECURITY_OVERVIEW_TOGGLE).length > 0 ||
+    SECURITY_EMPTY_STATE.test(card.text())
+}
 
 /** Close button for CVE details */
 const CLOSE_DETAILS_BUTTON = 'button[aria-label="Close drawer panel"]'
@@ -78,14 +87,7 @@ export const CLEAN_IMAGE = {
 export const securityPage = {
   getSecurityOverviewCard(timeout = 30000) {
     return cy.get(CARD, { timeout })
-      .filter((_, el) => {
-        const card = Cypress.$(el)
-        const title = card.find(CARD_TITLE).text()
-        const text = card.text()
-        return title.includes('Security overview') ||
-          card.find(SECURITY_OVERVIEW_TOGGLE).length > 0 ||
-          /No vulnerabilities detected|No vulnerabilities were found|No CVEs detected|No vulnerability data to display/i.test(text)
-      })
+      .filter((_, el) => isSecurityOverviewCard(el))
       .first()
   },
 
@@ -151,9 +153,7 @@ export const securityPage = {
       cy.scrollTo('bottom', { ensureScrollable: false })
       cy.get('.pf-v6-c-card', { timeout })
         .should(($cards) => {
-          const card = $cards.filter((_, el) =>
-            Cypress.$(el).find('.pf-v6-c-card__title-text').text().includes('Security overview')
-          )
+          const card = $cards.filter((_, el) => isSecurityOverviewCard(el))
           expect(card.length, 'Security overview card should exist').to.be.gt(0)
           card[0].scrollIntoView({ behavior: 'instant', block: 'end' })
           const text = card.first().text()
@@ -181,9 +181,7 @@ export const securityPage = {
       cy.scrollTo('bottom', { ensureScrollable: false })
       cy.get('.pf-v6-c-card', { timeout })
         .should(($cards) => {
-          const card = $cards.filter((_, el) =>
-            Cypress.$(el).find('.pf-v6-c-card__title-text').text().includes('Security overview')
-          )
+          const card = $cards.filter((_, el) => isSecurityOverviewCard(el))
           expect(card.length, 'Security overview card should exist').to.be.gt(0)
 
           card[0].scrollIntoView({ behavior: 'instant', block: 'end' })
@@ -500,9 +498,7 @@ export const securityPage = {
     // Helper: check whether the Security overview card currently shows the expected CVE count.
     // Runs synchronously inside a Cypress .then() / .should() callback.
     const isCveCountVisible = ($cards) => {
-      const card = $cards.filter((_, el) =>
-        Cypress.$(el).find(CARD_TITLE).text().includes('Security overview'),
-      )
+      const card = $cards.filter((_, el) => isSecurityOverviewCard(el))
       if (!card.length) return false
       card[0].scrollIntoView({ behavior: 'instant', block: 'end' })
       const $c = card.first()

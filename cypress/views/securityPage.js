@@ -78,9 +78,14 @@ export const CLEAN_IMAGE = {
 export const securityPage = {
   getSecurityOverviewCard(timeout = 30000) {
     return cy.get(CARD, { timeout })
-      .filter((_, el) =>
-        Cypress.$(el).find(CARD_TITLE).text().includes('Security overview'),
-      )
+      .filter((_, el) => {
+        const card = Cypress.$(el)
+        const title = card.find(CARD_TITLE).text()
+        const text = card.text()
+        return title.includes('Security overview') ||
+          card.find(SECURITY_OVERVIEW_TOGGLE).length > 0 ||
+          /No vulnerabilities detected|No vulnerabilities were found|No CVEs detected|No vulnerability data to display/i.test(text)
+      })
       .first()
   },
 

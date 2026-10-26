@@ -103,8 +103,8 @@ function fixtureNames() {
   return {
     fleetName: `catalog-inheritance-fleet-${suffix}`,
     editFleetName: `catalog-inheritance-edit-fleet-${suffix}`,
-    osItemName: `catalog-inheritance-os-${suffix}`,
-    appItemName: `catalog-inheritance-app-${suffix}`,
+    osItemName: 'inheritance-test-os',
+    appItemName: 'inheritance-test-app',
   }
 }
 

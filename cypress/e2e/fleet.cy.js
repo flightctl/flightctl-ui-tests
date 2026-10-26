@@ -91,6 +91,7 @@ describe('Fleet Management', () => {
       fleetsPage.proceedToDeviceTemplate(fixture.fleetName)
       fleetsPage.addCatalogOs(fixture.osItemName, channel, initialVersion)
       fleetsPage.addCatalogApplication(fixture.appItemName, channel, initialVersion)
+      cy.get('.fctl-catalog-ref-card').should('not.contain.text', 'Update available')
       cy.get('[data-testid="wizard-next-button"]').should('not.be.disabled').click()
       cy.get('[data-testid="wizard-next-button"]').should('not.be.disabled').click()
       fleetsPage.expectCatalogInheritanceReview(
@@ -103,17 +104,29 @@ describe('Fleet Management', () => {
       fleetsPage.openFleetCatalogTab()
       fleetsPage.expectCatalogItemState(fixture.osItemName, initialVersion, true)
       fleetsPage.expectCatalogItemState(fixture.appItemName, initialVersion, true)
+
+      fleetsPage.openEditFleetWizard(fixture.fleetName)
+      cy.get('[data-testid="wizard-next-button"]').should('not.be.disabled').click()
+      fleetsPage.expectCatalogInheritanceTemplate(
+        fixture.osItemName,
+        fixture.appItemName,
+        channel,
+        initialVersion,
+      )
+      fleetsPage.closeWizardWithoutChanges()
+      fleetsPage.openFleetDetails(fixture.fleetName)
+      fleetsPage.openFleetCatalogTab()
     })
 
     it('Should update catalog OS and application independently', () => {
       fleetsPage.expectCatalogItemState(fixture.osItemName, initialVersion, true)
       fleetsPage.expectCatalogItemState(fixture.appItemName, initialVersion, true)
 
-      fleetsPage.updateCatalogItem(fixture.osItemName, updateVersion)
+      fleetsPage.updateCatalogItem(fixture.osItemName, channel, initialVersion, updateVersion)
       fleetsPage.expectCatalogItemState(fixture.osItemName, updateVersion, false)
       fleetsPage.expectCatalogItemState(fixture.appItemName, initialVersion, true)
 
-      fleetsPage.updateCatalogItem(fixture.appItemName, updateVersion)
+      fleetsPage.updateCatalogItem(fixture.appItemName, channel, initialVersion, updateVersion)
       fleetsPage.expectCatalogItemState(fixture.osItemName, updateVersion, false)
       fleetsPage.expectCatalogItemState(fixture.appItemName, updateVersion, false)
     })

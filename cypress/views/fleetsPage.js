@@ -24,16 +24,13 @@ const selectCatalogItem = (itemName) => {
   catalogModal().find(`[aria-label="Select ${itemName}"]`).should('be.visible').click()
 }
 
-const catalogItemScope = (itemName) => cy.contains(itemName, { timeout: 60000 }).then(($item) => {
-  const scope = $item.parents().filter((_, element) => {
-    const candidate = Cypress.$(element)
-    const text = candidate.text()
-    return text.includes(itemName) && candidate.find('button').length > 0 && text.length < 1500
-  }).first()
-
-  expect(scope.length, `catalog item scope for ${itemName}`).to.equal(1)
-  return cy.wrap(scope)
-})
+const catalogItemScope = (itemName) => cy.contains('Deployed Software', { timeout: 60000 })
+  .closest('.pf-v6-c-card')
+  .contains(itemName)
+  .parents('.pf-v6-l-stack__item')
+  .filter((_, element) => Cypress.$(element).find('button').length > 0)
+  .first()
+  .should('be.visible')
 
 /** Fleet wizard General info uses RichValidationTextField name="name" */
 function assertFleetNameValidationIconErrorColor() {
@@ -140,6 +137,46 @@ export const fleetsPage = {
     reviewText(version)
   },
 
+  /** Verify saved catalog references and informational status in the fleet edit wizard. */
+  expectCatalogInheritanceTemplate: (osItemName, appItemName, channel, version) => {
+    const catalogItems = [osItemName, appItemName]
+    catalogItems.forEach((itemName) => {
+      cy.contains('.fctl-catalog-ref-card', itemName, { timeout: 60000 })
+        .scrollIntoView({ block: 'center' })
+        .should('be.visible')
+        .within(() => {
+          cy.contains('Update available').should('be.visible')
+          cy.get('button[aria-label="Expand"]').click()
+          cy.contains('dt', 'Channel')
+            .closest('.pf-v6-c-description-list__group')
+            .find('dd')
+            .should('contain.text', channel)
+          cy.contains('dt', 'Version')
+            .closest('.pf-v6-c-description-list__group')
+            .find('dd')
+            .should('contain.text', version)
+        })
+    })
+    cy.get('#selectfield-version-menu:visible').should('not.exist')
+  },
+
+  /** Return to fleet details without changing the edit wizard. */
+  closeWizardWithoutChanges: () => {
+    cy.get('[data-testid="wizard-cancel-button"]').should('be.visible').click()
+    cy.get('body').then(($body) => {
+      const discard = $body.find('button').filter((_, button) =>
+        (button.textContent || '').includes('Discard changes'))
+      if (discard.length) cy.wrap(discard.first()).click()
+    })
+    cy.get('[data-testid="wizard-cancel-button"]').should('not.exist')
+  },
+
+  openFleetDetails: (fleetName) => {
+    common.navigateTo('Fleets')
+    cy.contains('td', fleetName, { timeout: 60000 }).should('be.visible').click()
+    cy.contains(fleetName, { timeout: 60000 }).should('be.visible')
+  },
+
   /** Open the fleet Catalog tab and wait for installed catalog-backed software. */
   openFleetCatalogTab: () => {
     cy.contains('button[role="tab"]', 'Catalog', { timeout: 60000 }).should('be.visible').click()
@@ -148,9 +185,8 @@ export const fleetsPage = {
 
   /** Assert one installed catalog item version and its per-item update state. */
   expectCatalogItemState: (itemName, version, updateAvailable) => {
-    catalogItemScope(itemName).then(($scope) => {
-      cy.wrap($scope).should('contain', version)
-      const updateButton = cy.wrap($scope).contains('button', 'Update available')
+    catalogItemScope(itemName).should('contain.text', version).within(() => {
+      const updateButton = cy.contains('button', 'Update available')
       if (updateAvailable) {
         updateButton.should('be.visible')
       } else {
@@ -160,9 +196,13 @@ export const fleetsPage = {
   },
 
   /** Update one catalog-backed item and return to the fleet Catalog tab. */
-  updateCatalogItem: (itemName, targetVersion) => {
+  updateCatalogItem: (itemName, channel, currentVersion, targetVersion) => {
     catalogItemScope(itemName).contains('button', 'Update available', { timeout: 30000 }).click()
-    cy.contains(targetVersion, { timeout: 60000 }).should('be.visible')
+    cy.contains('h3', 'Version update', { timeout: 30000 }).should('be.visible')
+    cy.contains('Target channel').parents('.pf-v6-l-grid').first().should('contain.text', channel)
+    cy.contains('Current version').parents('.pf-v6-l-grid').first().should('contain.text', currentVersion)
+    cy.contains('Target version').parents('.pf-v6-l-grid').first().should('contain.text', targetVersion)
+    cy.get('#selectfield-channel-menu:visible, #selectfield-version-menu:visible').should('not.exist')
     cy.get('[data-testid="wizard-next-button"]', { timeout: 30000 }).should('not.be.disabled').click()
     cy.get('[data-testid="wizard-save-button"]', { timeout: 30000 }).should('be.visible').click()
     cy.contains('Update configuration successful', { timeout: 60000 }).should('be.visible')

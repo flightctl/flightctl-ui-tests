@@ -94,8 +94,11 @@ export const securityPage = {
       if (toggle.length) {
         if (toggle.attr('aria-expanded') !== 'true') {
           cy.wrap(toggle).click()
+          // Re-query the toggle after click to avoid DOM detachment issues from React re-render
+          cy.get(SECURITY_OVERVIEW_TOGGLE).should('have.attr', 'aria-expanded', 'true')
+        } else {
+          cy.wrap(toggle).should('have.attr', 'aria-expanded', 'true')
         }
-        cy.wrap(toggle).should('have.attr', 'aria-expanded', 'true')
       }
     })
   },

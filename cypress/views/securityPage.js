@@ -87,10 +87,25 @@ export const securityPage = {
   /**
    * Entity security cards are collapsed by default in the redesigned device/fleet page.
    * The overview page has no toggle, so this is intentionally a no-op there.
+   * If there's no Security overview card (zero vulnerabilities on Device/Fleet pages), this is also a no-op.
    */
   ensureEntitySecurityOverviewExpanded(timeout = 30000) {
-    this.getSecurityOverviewCard(timeout).then(($card) => {
-      const toggle = $card.find(SECURITY_OVERVIEW_TOGGLE)
+    // Check if Security overview card exists first
+    // On Device/Fleet pages with zero vulnerabilities, there's no card at all (just empty state)
+    cy.get('body', { timeout: Math.min(timeout, 5000) }).then(($body) => {
+      const cards = $body.find(CARD)
+      const securityCard = cards.filter((_, el) =>
+        Cypress.$(el).find(CARD_TITLE).text().includes('Security overview')
+      )
+
+      if (securityCard.length === 0) {
+        // No Security overview card exists (zero-vulnerability empty state on Device/Fleet pages)
+        cy.log('No Security overview card found - likely zero-vulnerability empty state')
+        return
+      }
+
+      // Card exists, check for toggle
+      const toggle = securityCard.find(SECURITY_OVERVIEW_TOGGLE)
       if (toggle.length) {
         if (toggle.attr('aria-expanded') !== 'true') {
           cy.wrap(toggle).click()
@@ -140,39 +155,47 @@ export const securityPage = {
   expectVulnerabilityCount(count, timeout = 90000) {
     this.ensureEntitySecurityOverviewExpanded(Math.min(timeout, 30000))
     if (count === 0) {
-      // Everything (card search, scroll, text assertion) inside one .should() so Cypress
-      // retries the whole block on every tick within `timeout`. If we chain .contains() off
-      // .get() instead, only the outer .get() benefits from the timeout; the chained
-      // .contains() uses its own 4 s default, causing premature failures on slow ACM pages.
-      // Pre-scroll the page to the bottom so the Security overview card (below the fold on ACM
-      // pages) is in the rendered viewport before we query for .pf-v6-c-card elements.
+      // Zero-vulnerability state can be one of two forms:
+      // 1. Overview page: "Security overview" card exists with "No vulnerability data to display" and zero severity tiles
+      // 2. Device/Fleet page: No card at all, just empty state "No vulnerabilities detected"
       cy.scrollTo('bottom', { ensureScrollable: false })
-      cy.get('.pf-v6-c-card', { timeout })
-        .should(($cards) => {
-          const card = $cards.filter((_, el) =>
-            Cypress.$(el).find('.pf-v6-c-card__title-text').text().includes('Security overview')
-          )
-          expect(card.length, 'Security overview card should exist').to.be.gt(0)
-          card[0].scrollIntoView({ behavior: 'instant', block: 'end' })
-          const text = card.first().text()
-          const hasNoVulnState =
-            text.includes('No vulnerabilities detected') ||
-            text.includes('No vulnerabilities were found') ||
-            text.includes('No CVEs detected') ||
-            text.includes('No vulnerability data to display')
-          const hasZeroTotal =
-            text.includes('0') &&
-            (text.includes('Total active vulnerabilities') ||
-             text.includes('total active vulnerabilities'))
-          const severityGrid = card.first().find('[aria-label="Vulnerability counts by severity"]')
-          const hasSeverityTilesAllZero =
-            severityGrid.length > 0 &&
-            severityGrid
-              .find('.pf-v6-u-font-size-xl strong')
-              .toArray()
-              .every((el) => el.textContent.trim() === '0')
-          expect(hasNoVulnState || hasZeroTotal || hasSeverityTilesAllZero, 'Should show 0 vulnerabilities').to.be.true
-        })
+      cy.get('body', { timeout }).should(($body) => {
+        // First check if the empty state exists (Device/Fleet page with no card)
+        const emptyState = $body.find('.pf-v6-c-empty-state:visible')
+        const emptyStateText = emptyState.text()
+        if (emptyState.length > 0 &&
+            (emptyStateText.includes('No vulnerabilities detected') ||
+             emptyStateText.includes('No vulnerabilities were found'))) {
+          // Device/Fleet page zero-vulnerability empty state - no card exists
+          return
+        }
+
+        // Otherwise, look for the Security overview card (Overview page)
+        const cards = $body.find('.pf-v6-c-card')
+        const card = cards.filter((_, el) =>
+          Cypress.$(el).find('.pf-v6-c-card__title-text').text().includes('Security overview')
+        )
+        expect(card.length, 'Security overview card or empty state should exist').to.be.gt(0)
+        card[0].scrollIntoView({ behavior: 'instant', block: 'end' })
+        const text = card.first().text()
+        const hasNoVulnState =
+          text.includes('No vulnerabilities detected') ||
+          text.includes('No vulnerabilities were found') ||
+          text.includes('No CVEs detected') ||
+          text.includes('No vulnerability data to display')
+        const hasZeroTotal =
+          text.includes('0') &&
+          (text.includes('Total active vulnerabilities') ||
+           text.includes('total active vulnerabilities'))
+        const severityGrid = card.first().find('[aria-label="Vulnerability counts by severity"]')
+        const hasSeverityTilesAllZero =
+          severityGrid.length > 0 &&
+          severityGrid
+            .find('.pf-v6-u-font-size-xl strong')
+            .toArray()
+            .every((el) => el.textContent.trim() === '0')
+        expect(hasNoVulnState || hasZeroTotal || hasSeverityTilesAllZero, 'Should show 0 vulnerabilities').to.be.true
+      })
     } else {
       // scroll + assert inside one .should() so the timeout covers the whole retry loop
       // and the scroll keeps the card visible on every retry (important on long ACM pages).
@@ -495,10 +518,24 @@ export const securityPage = {
    */
   waitForVulnerabilityCountWithReload(count, { firstWaitMs = 60000, reloadWaitMs = 120000, beforeReload = null } = {}) {
     this.ensureEntitySecurityOverviewExpanded()
-    // Helper: check whether the Security overview card currently shows the expected CVE count.
-    // Runs synchronously inside a Cypress .then() / .should() callback.
-    const isCveCountVisible = ($cards) => {
-      const card = $cards.filter((_, el) =>
+    // Helper: check whether the page shows the expected CVE count.
+    // Handles both card-based UI (Overview) and empty state UI (Device/Fleet with 0 CVEs).
+    // Runs synchronously inside a Cypress .then() callback.
+    const isCveCountVisible = ($body) => {
+      // For zero count, check if Device/Fleet empty state exists (no card)
+      if (count === 0) {
+        const emptyState = $body.find('.pf-v6-c-empty-state:visible')
+        const emptyStateText = emptyState.text()
+        if (emptyState.length > 0 &&
+            (emptyStateText.includes('No vulnerabilities detected') ||
+             emptyStateText.includes('No vulnerabilities were found'))) {
+          return true
+        }
+      }
+
+      // Check for Security overview card (Overview page, or Device/Fleet with CVEs)
+      const cards = $body.find(CARD)
+      const card = cards.filter((_, el) =>
         Cypress.$(el).find(CARD_TITLE).text().includes('Security overview'),
       )
       if (!card.length) return false
@@ -548,11 +585,10 @@ export const securityPage = {
     const iterations = Math.floor(firstWaitMs / pollInterval)
 
     // Build a recursive polling chain: check → wait → check → ... → done or reload.
-    // cy.get uses a 15s timeout so the card has time to appear after ACM page loads
-    // (default 4s is too short for ACM/headless mode).
+    // Query body instead of CARD so we can handle both card-based UI and empty state
     const poll = (remaining) => {
-      cy.get(CARD, { timeout: 15000 }).then(($cards) => {
-        if (isCveCountVisible($cards)) {
+      cy.get('body', { timeout: 15000 }).then(($body) => {
+        if (isCveCountVisible($body)) {
           cy.log(`✓ CVE count ${count} reached — no reload needed`)
           return
         }

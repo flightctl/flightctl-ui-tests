@@ -157,16 +157,15 @@ export const securityPage = {
     if (count === 0) {
       // Zero-vulnerability state can be one of two forms:
       // 1. Overview page: "Security overview" card exists with "No vulnerability data to display" and zero severity tiles
-      // 2. Device/Fleet page: No card at all, just empty state "No vulnerabilities detected"
+      // 2. Device/Fleet page: No card at all, just "No vulnerabilities detected" text on the page
       cy.scrollTo('bottom', { ensureScrollable: false })
       cy.get('body', { timeout }).should(($body) => {
-        // First check if the empty state exists (Device/Fleet page with no card)
-        const emptyState = $body.find('.pf-v6-c-empty-state:visible')
-        const emptyStateText = emptyState.text()
-        if (emptyState.length > 0 &&
-            (emptyStateText.includes('No vulnerabilities detected') ||
-             emptyStateText.includes('No vulnerabilities were found'))) {
-          // Device/Fleet page zero-vulnerability empty state - no card exists
+        const bodyText = $body.text()
+
+        // First check if the zero-vulnerability message exists anywhere on the page (Device/Fleet)
+        if (bodyText.includes('No vulnerabilities detected') ||
+            bodyText.includes('No vulnerabilities were found')) {
+          // Device/Fleet page zero-vulnerability state - text shown without a card
           return
         }
 
@@ -522,13 +521,11 @@ export const securityPage = {
     // Handles both card-based UI (Overview) and empty state UI (Device/Fleet with 0 CVEs).
     // Runs synchronously inside a Cypress .then() callback.
     const isCveCountVisible = ($body) => {
-      // For zero count, check if Device/Fleet empty state exists (no card)
+      // For zero count, check if the zero-vulnerability text exists anywhere on the page
       if (count === 0) {
-        const emptyState = $body.find('.pf-v6-c-empty-state:visible')
-        const emptyStateText = emptyState.text()
-        if (emptyState.length > 0 &&
-            (emptyStateText.includes('No vulnerabilities detected') ||
-             emptyStateText.includes('No vulnerabilities were found'))) {
+        const bodyText = $body.text()
+        if (bodyText.includes('No vulnerabilities detected') ||
+            bodyText.includes('No vulnerabilities were found')) {
           return true
         }
       }

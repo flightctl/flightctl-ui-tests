@@ -16,7 +16,7 @@ function isNotFound(error) {
   return /not found|notfound|404/i.test(`${error?.message || ''} ${error?.stderr || ''}`)
 }
 
-function catalogItemManifest({ catalogName, itemName, displayName, category, type, artifactUri }) {
+function catalogItemManifest({ catalogName, itemName, displayName, category, type, artifactUri, requiredConfig = false }) {
   return [
     'apiVersion: flightctl.io/v1alpha1',
     'kind: CatalogItem',
@@ -34,10 +34,26 @@ function catalogItemManifest({ catalogName, itemName, displayName, category, typ
     `    - version: "${INITIAL_VERSION}"`,
     `      channels: [${CHANNEL}]`,
     `      references: {container: "${INITIAL_VERSION}"}`,
-    `    - version: "${UPDATE_VERSION}"`,
-    `      channels: [${CHANNEL}]`,
-    `      references: {container: "${UPDATE_VERSION}"}`,
-    `      replaces: "${INITIAL_VERSION}"`,
+    ...(requiredConfig
+      ? [
+          '      configSchema:',
+          '        type: object',
+          '        properties:',
+          '          envVars:',
+          '            type: object',
+          '            properties:',
+          '              REQUIRED_VALUE:',
+          '                type: string',
+          '                minLength: 1',
+          '            required: [REQUIRED_VALUE]',
+          '        required: [envVars]',
+        ]
+      : [
+          `    - version: "${UPDATE_VERSION}"`,
+          `      channels: [${CHANNEL}]`,
+          `      references: {container: "${UPDATE_VERSION}"}`,
+          `      replaces: "${INITIAL_VERSION}"`,
+        ]),
     '',
   ].join('\n')
 }
@@ -98,18 +114,22 @@ async function cleanupCatalogItems(catalogName, itemNames) {
   }
 }
 
-function fixtureNames() {
+function fixtureNames(includeRequiredConfigApp) {
   const suffix = `${Date.now().toString(36)}-${process.pid}`
   return {
     fleetName: `catalog-inheritance-fleet-${suffix}`,
     editFleetName: `catalog-inheritance-edit-fleet-${suffix}`,
     osItemName: 'inheritance-test-os',
     appItemName: 'inheritance-test-app',
+    ...(includeRequiredConfigApp ? {
+      configFleetName: `catalog-inheritance-config-fleet-${suffix}`,
+      requiredAppItemName: `required-app-${suffix}`,
+    } : {}),
   }
 }
 
-async function catalogInheritanceSetup({ catalogName = DEFAULT_CATALOG_NAME } = {}) {
-  const names = fixtureNames()
+async function catalogInheritanceSetup({ catalogName = DEFAULT_CATALOG_NAME, includeRequiredConfigApp = false } = {}) {
+  const names = fixtureNames(includeRequiredConfigApp)
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flightctl-edm5295-'))
   const osDisplayName = names.osItemName
   const appDisplayName = names.appItemName
@@ -132,6 +152,17 @@ async function catalogInheritanceSetup({ catalogName = DEFAULT_CATALOG_NAME } = 
       artifactUri: 'quay.io/sdelacru/flightctl-centos',
     }),
   ]
+  if (includeRequiredConfigApp) {
+    manifests.push(catalogItemManifest({
+      catalogName,
+      itemName: names.requiredAppItemName,
+      displayName: names.requiredAppItemName,
+      category: 'application',
+      type: 'container',
+      artifactUri: 'quay.io/sdelacru/flightctl-centos',
+      requiredConfig: true,
+    }))
+  }
 
   try {
     manifests.forEach((manifest, index) => {
@@ -141,9 +172,10 @@ async function catalogInheritanceSetup({ catalogName = DEFAULT_CATALOG_NAME } = 
     })
     await waitForCatalogItem(catalogName, names.osItemName)
     await waitForCatalogItem(catalogName, names.appItemName)
+    if (includeRequiredConfigApp) await waitForCatalogItem(catalogName, names.requiredAppItemName)
     return { catalogName, ...names, initialVersion: INITIAL_VERSION, updateVersion: UPDATE_VERSION, channel: CHANNEL }
   } catch (error) {
-    await cleanupCatalogItems(catalogName, [names.osItemName, names.appItemName]).catch(() => {})
+    await cleanupCatalogItems(catalogName, [names.osItemName, names.appItemName, names.requiredAppItemName].filter(Boolean)).catch(() => {})
     throw new Error(`Failed to create EDM-5295 catalog fixtures: ${error.message}`)
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true })
@@ -154,11 +186,13 @@ async function catalogInheritanceCleanup({
   catalogName = DEFAULT_CATALOG_NAME,
   fleetName,
   editFleetName,
+  configFleetName,
   osItemName,
   appItemName,
+  requiredAppItemName,
 } = {}) {
   let cleanupError
-  const fleetNames = [fleetName, editFleetName].filter(Boolean)
+  const fleetNames = [fleetName, editFleetName, configFleetName].filter(Boolean)
 
   for (const fleetToDelete of fleetNames) {
     try {
@@ -175,19 +209,29 @@ async function catalogInheritanceCleanup({
   }
 
   try {
-    await cleanupCatalogItems(catalogName, [osItemName, appItemName].filter(Boolean))
+    await cleanupCatalogItems(catalogName, [osItemName, appItemName, requiredAppItemName].filter(Boolean))
   } catch (error) {
     cleanupError ||= error
   }
 
   if (cleanupError) throw cleanupError
-  return { cleaned: true, catalogName, fleetName, editFleetName, osItemName, appItemName }
+  return { cleaned: true, catalogName, fleetName, editFleetName, configFleetName, osItemName, appItemName, requiredAppItemName }
+}
+
+function getFleetCatalogApplication({ fleetName, itemName }) {
+  const fleet = JSON.parse(runFlightctl(['get', 'fleet', fleetName, '-o', 'json']))
+  const app = fleet.spec?.template?.spec?.applications?.find(
+    (candidate) => candidate.catalogItemRef?.item === itemName,
+  )
+  if (!app) throw new Error(`Catalog application ${itemName} not found on fleet ${fleetName}`)
+  return app
 }
 
 function registerCatalogTasks(on) {
   on('task', {
     catalogInheritanceSetup,
     catalogInheritanceCleanup,
+    getFleetCatalogApplication,
   })
 }
 

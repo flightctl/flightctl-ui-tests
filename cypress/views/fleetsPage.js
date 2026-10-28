@@ -24,6 +24,14 @@ const selectCatalogItem = (itemName) => {
   catalogModal().find(`[aria-label="Select ${itemName}"]`).should('be.visible').click()
 }
 
+const chooseCatalogApplication = (itemName, channel, version) => {
+  cy.contains('button', 'Add from software catalog', { timeout: 30000 }).first().click()
+  catalogModal().should('contain', 'Add application from Software Catalog')
+  selectCatalogItem(itemName)
+  selectCatalogValue('selectfield-channel-menu', channel)
+  selectCatalogValue('selectfield-version-menu', version)
+}
+
 const catalogItemScope = (itemName) => cy.contains('Deployed Software', { timeout: 60000 })
   .closest('.pf-v6-c-card')
   .contains(itemName)
@@ -117,12 +125,22 @@ export const fleetsPage = {
 
   /** Add a pinned application catalog reference to the open fleet wizard. */
   addCatalogApplication: (itemName, channel, version) => {
-    cy.contains('button', 'Add from software catalog', { timeout: 30000 }).first().click()
-    catalogModal().should('contain', 'Add application from Software Catalog')
-    selectCatalogItem(itemName)
-    selectCatalogValue('selectfield-channel-menu', channel)
-    selectCatalogValue('selectfield-version-menu', version)
+    chooseCatalogApplication(itemName, channel, version)
     catalogModal().contains('button', 'Add to template').should('be.visible').click()
+    cy.get('[role="dialog"]:visible').should('not.exist')
+  },
+
+  /** Complete the mandatory Form view for an app whose schema has no default for a required field. */
+  addRequiredConfigCatalogApplication: (itemName, channel, version, requiredValue) => {
+    chooseCatalogApplication(itemName, channel, version)
+    catalogModal().contains('Additional information required').should('be.visible')
+    catalogModal().contains('button', 'Next').should('not.be.disabled').click()
+    catalogModal().contains('h3', 'Advanced configuration').should('be.visible')
+    catalogModal().contains('Form view').should('be.visible')
+    catalogModal().find('#root_envVars_REQUIRED_VALUE').should('have.value', '')
+    catalogModal().contains('button', 'Add to template').should('be.disabled')
+    catalogModal().find('#root_envVars_REQUIRED_VALUE').type(requiredValue)
+    catalogModal().contains('button', 'Add to template').should('not.be.disabled').click()
     cy.get('[role="dialog"]:visible').should('not.exist')
   },
 

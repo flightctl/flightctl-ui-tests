@@ -76,7 +76,7 @@ describe('Fleet Management', () => {
     const updateVersion = '1.1.0'
 
     before(() => {
-      cy.task('catalogInheritanceSetup', { catalogName: 'default' }).then((created) => {
+      cy.task('catalogInheritanceSetup', { catalogName: 'default', includeRequiredConfigApp: true }).then((created) => {
         Object.assign(fixture, created)
       })
     })
@@ -129,6 +129,37 @@ describe('Fleet Management', () => {
       fleetsPage.updateCatalogItem(fixture.appItemName, channel, initialVersion, updateVersion)
       fleetsPage.expectCatalogItemState(fixture.osItemName, updateVersion, false)
       fleetsPage.expectCatalogItemState(fixture.appItemName, updateVersion, false)
+    })
+
+    it('When catalog configuration is required it should block adding the app until the field is filled', () => {
+      const requiredValue = 'configured-by-fleet'
+      fleetsPage.openCreateFleetWizard()
+      fleetsPage.proceedToDeviceTemplate(fixture.configFleetName)
+      fleetsPage.addCatalogOs(fixture.osItemName, channel, initialVersion)
+      fleetsPage.addRequiredConfigCatalogApplication(
+        fixture.requiredAppItemName,
+        channel,
+        initialVersion,
+        requiredValue,
+      )
+      cy.get('[data-testid="wizard-next-button"]').should('not.be.disabled').click()
+      cy.get('[data-testid="wizard-next-button"]').should('not.be.disabled').click()
+      cy.get('[data-testid="wizard-save-button"]').should('be.visible').click()
+      fleetsPage.openFleetCatalogTab()
+      fleetsPage.expectCatalogItemState(fixture.requiredAppItemName, initialVersion, false)
+
+      cy.task('getFleetCatalogApplication', {
+        fleetName: fixture.configFleetName,
+        itemName: fixture.requiredAppItemName,
+      }).then((app) => {
+        expect(app.catalogItemRef).to.deep.include({
+          catalog: fixture.catalogName,
+          item: fixture.requiredAppItemName,
+          channel,
+          version: initialVersion,
+        })
+        expect(app.envVars?.REQUIRED_VALUE).to.equal(requiredValue)
+      })
     })
 
     it('Should edit another fleet to use catalog OS and application references', () => {
